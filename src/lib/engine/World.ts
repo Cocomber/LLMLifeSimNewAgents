@@ -202,9 +202,20 @@ export function getVisibleArea(
   };
 
   lines.push(
-    `Ты находишься на позиции (${pos.x}, ${pos.y}) на карте ${world.width}x${world.height}.`
+    `Ты находишься на позиции (${pos.x}, ${pos.y}). Мир: ${world.width}x${world.height} (координаты 0..${world.width - 1} по X, 0..${world.height - 1} по Y).`
   );
   lines.push(`Дальность видимости: ${range} клеток.`);
+
+  // Boundary warnings
+  const boundaries: string[] = [];
+  if (pos.x <= 1) boundaries.push(`запад (X=0 в ${pos.x} кл.)`);
+  if (pos.x >= world.width - 2) boundaries.push(`восток (X=${world.width - 1} в ${world.width - 1 - pos.x} кл.)`);
+  if (pos.y <= 1) boundaries.push(`север (Y=0 в ${pos.y} кл.)`);
+  if (pos.y >= world.height - 2) boundaries.push(`юг (Y=${world.height - 1} в ${world.height - 1 - pos.y} кл.)`);
+  if (boundaries.length > 0) {
+    lines.push(`⚠️ ГРАНИЦА МИРА рядом: ${boundaries.join(', ')}. Двигайся в другую сторону!`);
+  }
+
   lines.push('');
 
   // Visible objects

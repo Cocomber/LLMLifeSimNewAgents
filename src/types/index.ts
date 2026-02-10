@@ -60,7 +60,7 @@ export interface TurnLog {
   turnId: number;
   agentId: string;
   thought: string;
-  action: AgentAction;
+  actions: AgentAction[];
   narrativeEvent: string;
   needs: AgentNeeds;
   position: Position;
@@ -186,14 +186,6 @@ export interface RemoveObjectAction {
   };
 }
 
-export interface CommunicateAction {
-  type: 'communicate';
-  target: {
-    message: string;
-    to_agent?: string; // null = broadcast to nearby
-  };
-}
-
 export interface IdleAction {
   type: 'idle';
   target?: null;
@@ -207,7 +199,6 @@ export type AgentAction =
   | RemoveInventoryAction
   | PlaceObjectAction
   | RemoveObjectAction
-  | CommunicateAction
   | IdleAction;
 
 // ==================== LLM Response ====================
@@ -226,7 +217,6 @@ export interface LLMAgentResponse {
   }>;
   narrative_event: string;
   inventory_report: string;
-  message_to_others?: string;
   relationships_update?: Record<string, {
     description: string;
     attitude: string;

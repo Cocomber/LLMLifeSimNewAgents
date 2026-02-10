@@ -410,24 +410,6 @@ export function processActions(
           break;
         }
 
-        case 'communicate': {
-          if (target && typeof target === 'object') {
-            const t = target as any;
-            const message = String(t.message || '');
-            const to_agent = t.to_agent ? String(t.to_agent) : undefined;
-            const chatMessage: ChatMessage = {
-              turnId: 0, // Will be set by the caller
-              fromAgentId: currentAgent.id,
-              fromAgentName: currentAgent.name,
-              ...(to_agent ? { toAgentId: to_agent } : {}),
-              message,
-              position: { ...currentAgent.position },
-            };
-            messages.push(chatMessage);
-          }
-          break;
-        }
-
         case 'idle':
         default:
           // No-op
@@ -475,8 +457,7 @@ export function processFullResponse(
     localGoal: response.local_goal,
   };
 
-  // Process physical actions (max 3). "communicate" actions are kept for
-  // backward compat — they still produce messages but also consume an action slot.
+  // Process physical actions (max 3)
   const actionsToProcess = (response.actions || []).slice(0, 3) as AgentAction[];
   const {
     updatedAgent: agentAfterActions,
@@ -492,39 +473,22 @@ export function processFullResponse(
     comfortRate
   );
 
-  // Set turnId on all messages from actions (communicate backward compat)
-  for (const msg of messages) {
-    msg.turnId = turnId;
-  }
-
-  // Process the new "messages" field (separate from actions, up to 3)
+  // Process the "messages" field (separate from actions, up to 3)
   if (response.messages && Array.isArray(response.messages)) {
+    const seen = new Set<string>();
     const msgs = response.messages.slice(0, 3);
     for (const m of msgs) {
       if (!m || !m.message || typeof m.message !== 'string' || !m.message.trim()) continue;
+      // Dedup: skip if exact same text already added
+      const key = m.message.trim();
+      if (seen.has(key)) continue;
+      seen.add(key);
       messages.push({
         turnId,
         fromAgentId: agentAfterDecay.id,
         fromAgentName: agentAfterDecay.name,
         ...(m.to_agent ? { toAgentId: String(m.to_agent) } : {}),
         message: m.message,
-        position: { ...agentAfterDecay.position },
-      });
-    }
-  }
-
-  // Backward compat: message_to_others as broadcast
-  if (response.message_to_others && response.message_to_others.trim() !== '') {
-    // Only add if not already covered by new messages field
-    const alreadyHasIt = messages.some(
-      (msg) => msg.message === response.message_to_others && msg.fromAgentId === agentAfterDecay.id
-    );
-    if (!alreadyHasIt) {
-      messages.push({
-        turnId,
-        fromAgentId: agentAfterDecay.id,
-        fromAgentName: agentAfterDecay.name,
-        message: response.message_to_others,
         position: { ...agentAfterDecay.position },
       });
     }

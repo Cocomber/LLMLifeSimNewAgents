@@ -78,13 +78,14 @@ export function shouldGenerateSummary(
 export function generateMemorySummaryPrompt(memory: AgentMemory): string {
   const turnsText = memory.recentTurns
     .map((t) => {
+      const actionsStr = (t.actions || []).map(a => a.type).join(', ') || 'idle';
       return (
         `Ход ${t.turnId}: позиция (${t.position.x}, ${t.position.y}), ` +
-        `действие: ${t.action.type}, ` +
+        `действия: [${actionsStr}], ` +
         `мысль: "${t.thought}", ` +
         `событие: "${t.narrativeEvent}", ` +
-        `потребности: голод=${t.needs.hunger}, жажда=${t.needs.thirst}, комфорт=${t.needs.comfort}, ` +
-        `локальная цель: "${t.localGoal}", глобальная цель: "${t.globalGoal}"`
+        `потребности: голод=${Math.round(t.needs.hunger)}, жажда=${Math.round(t.needs.thirst)}, комфорт=${Math.round(t.needs.comfort)}, ` +
+        `цель: "${t.localGoal}"`
       );
     })
     .join('\n');
@@ -142,11 +143,12 @@ export function getMemoryContext(memory: AgentMemory): string {
   if (memory.recentTurns.length > 0) {
     const recentText = memory.recentTurns
       .map((t) => {
+        const actionsStr = (t.actions || []).map(a => a.type).join(', ') || 'idle';
         return (
           `  [Ход ${t.turnId}] позиция (${t.position.x}, ${t.position.y}) | ` +
-          `действие: ${t.action.type} | мысль: "${t.thought}" | ` +
+          `действия: [${actionsStr}] | мысль: "${t.thought}" | ` +
           `событие: "${t.narrativeEvent}" | ` +
-          `потребности: голод=${t.needs.hunger}, жажда=${t.needs.thirst}, комфорт=${t.needs.comfort}`
+          `потребности: голод=${Math.round(t.needs.hunger)}, жажда=${Math.round(t.needs.thirst)}, комфорт=${Math.round(t.needs.comfort)}`
         );
       })
       .join('\n');

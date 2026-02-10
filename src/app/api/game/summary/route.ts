@@ -45,7 +45,6 @@ export async function POST(request: Request) {
             if (a.type === 'search') return `поиск`;
             if (a.type === 'add_inventory') return `взял ${(a.target as any)?.item}`;
             if (a.type === 'remove_inventory') return `использовал ${(a.target as any)?.item}`;
-            if (a.type === 'communicate') return `сказал: "${(a.target as any)?.message}"`;
             return a.type;
           });
           lines.push(`    Действия: ${actionStrs.join('; ')}`);

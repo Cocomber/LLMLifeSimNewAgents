@@ -239,19 +239,35 @@ export async function generateTurn(gameState: GameState): Promise<GameState> {
     // Apply world changes so subsequent agents see them
     currentWorld = updatedWorld;
 
+    // Filter out messages directed at agents who are not nearby
+    const filteredMessages = agentMessages.filter((msg) => {
+      if (!msg.toAgentId) return true; // broadcasts always pass
+      // Find the target agent by name or id
+      const targetAgent = updatedAgents.find(
+        (a) => a.name === msg.toAgentId || a.id === msg.toAgentId
+      );
+      if (!targetAgent) return true; // unknown target (e.g. "Незнакомец"), let it through
+      // Check proximity
+      const dist = Math.sqrt(
+        (targetAgent.position.x - updatedAgent.position.x) ** 2 +
+        (targetAgent.position.y - updatedAgent.position.y) ** 2
+      );
+      return dist <= gameState.settings.visibilityRange;
+    });
+
     // Collect messages from this agent
-    allTurnMessages.push(...agentMessages);
+    allTurnMessages.push(...filteredMessages);
 
     // (f) Build TurnLog and add to agent's memory
-    const primaryAction: AgentAction = (llmResponse.actions && llmResponse.actions.length > 0)
-      ? (llmResponse.actions[0] as AgentAction)
-      : { type: 'idle', target: null };
+    const allActions: AgentAction[] = (llmResponse.actions && llmResponse.actions.length > 0)
+      ? (llmResponse.actions.slice(0, 3) as AgentAction[])
+      : [{ type: 'idle', target: null }];
 
     const turnLog: TurnLog = {
       turnId: nextTurnId,
       agentId: agent.id,
       thought: llmResponse.thought,
-      action: primaryAction,
+      actions: allActions,
       narrativeEvent: llmResponse.narrative_event,
       needs: { ...updatedAgent.needs },
       position: { ...updatedAgent.position },
@@ -357,7 +373,7 @@ export async function generateTurn(gameState: GameState): Promise<GameState> {
       };
 
       // --- A) Messages this agent SENT ---
-      for (const msg of agentMessages) {
+      for (const msg of filteredMessages) {
         if (!msg.message?.trim()) continue;
         if (msg.toAgentId) {
           // Directed message: log under the resolved recipient

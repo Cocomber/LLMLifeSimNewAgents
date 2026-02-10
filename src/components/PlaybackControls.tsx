@@ -27,8 +27,6 @@ function formatAction(action: AgentAction): string {
       return `Поставить ${action.target.emoji} ${action.target.object} (${action.target.x}, ${action.target.y})`;
     case 'remove_object':
       return `Убрать объект (${action.target.x}, ${action.target.y})`;
-    case 'communicate':
-      return `Сообщение${action.target.to_agent ? ` к ${action.target.to_agent}` : ''}: "${action.target.message}"`;
     case 'idle':
       return 'Бездействие';
     default:

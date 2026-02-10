@@ -21,7 +21,6 @@ function formatAction(action: AgentAction): string {
     case 'remove_inventory': return `Использовать ${action.target?.emoji || ''} ${action.target?.item || ''} x${action.target?.amount || 1}`;
     case 'place_object': return `Поставить ${action.target?.emoji || ''} ${action.target?.object || ''} (${action.target?.x}, ${action.target?.y})`;
     case 'remove_object': return `Убрать объект (${action.target?.x}, ${action.target?.y})`;
-    case 'communicate': return `Сказать${action.target?.to_agent ? ` к ${action.target.to_agent}` : ''}: "${action.target?.message || ''}"`;
     case 'idle': return 'Бездействие';
     default: return String((action as any).type);
   }

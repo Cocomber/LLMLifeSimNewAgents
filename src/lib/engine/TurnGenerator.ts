@@ -232,6 +232,22 @@ export async function generateTurn(gameState: GameState): Promise<GameState> {
       llmResponse.narrative_event,
     );
 
+    // (f2) Process relationships_update from LLM response
+    if (llmResponse.relationships_update && typeof llmResponse.relationships_update === 'object') {
+      const currentRels = { ...(updatedMemory.relationships || {}) };
+      for (const [name, update] of Object.entries(llmResponse.relationships_update)) {
+        if (update && typeof update === 'object') {
+          currentRels[name] = {
+            name,
+            description: String((update as any).description || ''),
+            attitude: String((update as any).attitude || 'нейтральный'),
+            lastSeenTurn: nextTurnId,
+          };
+        }
+      }
+      updatedMemory = { ...updatedMemory, relationships: currentRels };
+    }
+
     // (g) Generate memory summary if it is time
     if (shouldGenerateSummary(updatedMemory, nextTurnId)) {
       const summaryPrompt = generateMemorySummaryPrompt(updatedMemory);

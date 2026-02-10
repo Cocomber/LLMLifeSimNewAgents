@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import type { AgentState, InventoryItem, TurnRecord, AgentAction } from '@/types';
+import type { AgentState, InventoryItem, TurnRecord, AgentAction, AgentRelationship } from '@/types';
 import { LLM_MODEL_LABELS } from '@/types';
 
 interface AgentDetailModalProps {
@@ -29,7 +29,7 @@ function formatAction(action: AgentAction): string {
 
 export default function AgentDetailModal({ agent, turnHistory, onClose, onGoalChange }: AgentDetailModalProps) {
   const [goalDraft, setGoalDraft] = useState(agent.globalGoal);
-  const [activeTab, setActiveTab] = useState<'history' | 'memory' | 'inventory'>('history');
+  const [activeTab, setActiveTab] = useState<'history' | 'memory' | 'inventory' | 'relationships'>('history');
 
   const handleGoalSubmit = () => {
     const trimmed = goalDraft.trim();
@@ -116,6 +116,7 @@ export default function AgentDetailModal({ agent, turnHistory, onClose, onGoalCh
             { id: 'history' as const, label: `История (${agentHistory.length})` },
             { id: 'memory' as const, label: `Память (${agent.memory.importantEvents.length})` },
             { id: 'inventory' as const, label: `Инвентарь (${agent.inventory.length})` },
+            { id: 'relationships' as const, label: `Отношения (${Object.keys(agent.memory.relationships || {}).length})` },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -225,6 +226,45 @@ export default function AgentDetailModal({ agent, turnHistory, onClose, onGoalCh
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Relationships tab */}
+          {activeTab === 'relationships' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {(() => {
+                const rels = agent.memory.relationships || {};
+                const relNames = Object.keys(rels);
+                if (relNames.length === 0) {
+                  return (
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '20px' }}>
+                      Ещё никого не встречал
+                    </div>
+                  );
+                }
+                return relNames.map((name) => {
+                  const r = rels[name];
+                  const attitudeColor = r.attitude.includes('друж') || r.attitude.includes('тёпл') || r.attitude.includes('добр') ? '#22c55e'
+                    : r.attitude.includes('вражд') || r.attitude.includes('негат') || r.attitude.includes('опас') ? '#ef4444'
+                    : '#eab308';
+                  return (
+                    <div key={name} style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', borderLeft: `3px solid ${attitudeColor}`, background: 'var(--bg-primary)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{name}</span>
+                        <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '10px', background: `${attitudeColor}22`, color: attitudeColor, fontWeight: 600 }}>
+                          {r.attitude}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                        {r.description}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '4px', opacity: 0.7 }}>
+                        Последняя встреча: ход {r.lastSeenTurn}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           )}
         </div>

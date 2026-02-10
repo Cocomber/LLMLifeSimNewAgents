@@ -8,6 +8,7 @@ import AgentDetailModal from './AgentDetailModal';
 import ControlPanel from './ControlPanel';
 import PlaybackControls from './PlaybackControls';
 import WorldEditor from './WorldEditor';
+import SummaryModal from './SummaryModal';
 
 interface GameViewProps {
   initialGame: GameState;
@@ -21,6 +22,7 @@ export default function GameView({ initialGame, apiKeys, onBackToSetup }: GameVi
   const [detailAgentId, setDetailAgentId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showWorldEditor, setShowWorldEditor] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
   const [currentViewTurn, setCurrentViewTurn] = useState<number>(game.currentTurn);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -213,7 +215,7 @@ export default function GameView({ initialGame, apiKeys, onBackToSetup }: GameVi
       )}
 
       <div style={{ flexShrink: 0 }}>
-        <ControlPanel currentTurn={game.currentTurn} isGenerating={isGenerating} onGenerateTurns={handleGenerateTurns} onSave={handleSave} onOpenWorldEditor={() => setShowWorldEditor(true)} onSendMessage={handleSendMessage} onBackToSetup={onBackToSetup} />
+        <ControlPanel currentTurn={game.currentTurn} isGenerating={isGenerating} onGenerateTurns={handleGenerateTurns} onSave={handleSave} onOpenWorldEditor={() => setShowWorldEditor(true)} onSendMessage={handleSendMessage} onBackToSetup={onBackToSetup} onOpenSummary={() => setShowSummary(true)} />
       </div>
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
@@ -240,6 +242,9 @@ export default function GameView({ initialGame, apiKeys, onBackToSetup }: GameVi
       )}
       {showWorldEditor && (
         <WorldEditor world={game.world} onClose={() => setShowWorldEditor(false)} onAddObject={handleAddObject} onRemoveObject={handleRemoveObject} onAnnounce={handleAnnounce} />
+      )}
+      {showSummary && (
+        <SummaryModal turnHistory={game.turnHistory} agents={game.agents} maxTurn={game.currentTurn} apiKeys={apiKeys as Record<string, string | undefined>} onClose={() => setShowSummary(false)} />
       )}
     </div>
   );

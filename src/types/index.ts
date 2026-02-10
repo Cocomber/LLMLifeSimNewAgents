@@ -35,10 +35,18 @@ export interface MemoryEvent {
   important: boolean;
 }
 
+export interface AgentRelationship {
+  name: string;
+  description: string;
+  attitude: string; // e.g. "дружелюбный", "нейтральный", "враждебный"
+  lastSeenTurn: number;
+}
+
 export interface AgentMemory {
   importantEvents: MemoryEvent[];
   recentTurns: TurnLog[];
   summaries: string[];
+  relationships: Record<string, AgentRelationship>; // keyed by agent name
 }
 
 export interface TurnLog {
@@ -199,6 +207,10 @@ export interface LLMAgentResponse {
   narrative_event: string;
   inventory_report: string;
   message_to_others?: string;
+  relationships_update?: Record<string, {
+    description: string;
+    attitude: string;
+  }>;
 }
 
 // ==================== Communication ====================

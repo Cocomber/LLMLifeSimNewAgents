@@ -20,6 +20,7 @@ export function createEmptyMemory(): AgentMemory {
     importantEvents: [],
     recentTurns: [],
     summaries: [],
+    relationships: {},
   };
 }
 

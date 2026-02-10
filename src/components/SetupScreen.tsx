@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import {
   LLMModel,
@@ -171,6 +171,38 @@ export default function SetupScreen({ onGameCreated }: SetupScreenProps) {
       setLoadingSave(null);
     }
   };
+
+  // ---- File upload ----
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const saveFile = JSON.parse(text);
+        // Support both SaveFile format (with gameState wrapper) and direct GameState
+        const game = saveFile.gameState || saveFile;
+        if (!game.id || !game.world || !game.agents) {
+          throw new Error('Неверный формат файла сохранения');
+        }
+        // Apply current API keys
+        game.apiKeys = apiKeys;
+        onGameCreated(game, apiKeys);
+      } catch (err: any) {
+        setError(err.message ?? 'Ошибка чтения файла');
+      }
+    };
+    reader.onerror = () => setError('Ошибка чтения файла');
+    reader.readAsText(file);
+
+    // Reset input so the same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [apiKeys, onGameCreated]);
 
   // ---- Render ----
   return (
@@ -445,10 +477,12 @@ export default function SetupScreen({ onGameCreated }: SetupScreenProps) {
         </section>
 
         {/* ====== Load Game ====== */}
-        {saves.length > 0 && (
-          <section className="panel">
-            <div className="panel-header">Загрузить сохранение</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <section className="panel">
+          <div className="panel-header">Загрузить сохранение</div>
+
+          {/* Server saves */}
+          {saves.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
               {saves.map((save) => {
                 const dateStr = new Date(save.savedAt).toLocaleString('ru-RU', {
                   day: '2-digit',
@@ -500,8 +534,34 @@ export default function SetupScreen({ onGameCreated }: SetupScreenProps) {
                 );
               })}
             </div>
-          </section>
-        )}
+          )}
+
+          {/* File upload */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              width: '100%',
+              padding: '12px 0',
+              fontSize: '0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            <span style={{ fontSize: '1.1rem' }}>📂</span>
+            Загрузить из файла (.json)
+          </button>
+        </section>
 
         {/* ====== Error ====== */}
         {error && (

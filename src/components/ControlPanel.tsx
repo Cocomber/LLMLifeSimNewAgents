@@ -10,6 +10,7 @@ interface ControlPanelProps {
   onOpenWorldEditor: () => void;
   onSendMessage: (message: string) => void;
   onBackToSetup: () => void;
+  onOpenSummary: () => void;
 }
 
 export default function ControlPanel({
@@ -20,6 +21,7 @@ export default function ControlPanel({
   onOpenWorldEditor,
   onSendMessage,
   onBackToSetup,
+  onOpenSummary,
 }: ControlPanelProps) {
   const [customTurnCount, setCustomTurnCount] = useState(5);
   const [godMessage, setGodMessage] = useState('');
@@ -146,6 +148,16 @@ export default function ControlPanel({
         style={{ whiteSpace: 'nowrap' }}
       >
         Редактор мира
+      </button>
+
+      {/* ===== Summary Button ===== */}
+      <button
+        className="btn btn-secondary"
+        onClick={onOpenSummary}
+        disabled={isGenerating}
+        style={{ whiteSpace: 'nowrap' }}
+      >
+        Саммари
       </button>
 
       {/* ===== Separator ===== */}

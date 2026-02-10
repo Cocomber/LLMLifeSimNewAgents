@@ -15,30 +15,53 @@ export function buildSystemPrompt(
   agent: AgentState,
   settings: GameSettings,
   _allAgentNames: string[],
+  currentTurn?: number,
 ): string {
   const communicationRules = getCommunicationRules(settings.communicationMode);
 
-  // Build relationships context
+  // Time calculation: turn 1 = 9:00, each turn = 15 minutes
+  const turn = currentTurn || 0;
+  const totalMinutes = (turn - 1) * 15;
+  const hours = Math.floor(totalMinutes / 60) + 9;
+  const minutes = totalMinutes % 60;
+  const day = Math.floor(hours / 24) + 1;
+  const displayHours = hours % 24;
+  const timeStr = `День ${day}, ${String(displayHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+
+  // Build relationships + conversation context
   const relationships = agent.memory.relationships || {};
   const relKeys = Object.keys(relationships);
   let relationshipsSection = '';
   if (relKeys.length > 0) {
     const relLines = relKeys.map((name) => {
       const r = relationships[name];
-      return `  - ${name}: ${r.description} (отношение: ${r.attitude}, последняя встреча: ход ${r.lastSeenTurn})`;
+      let line = `  - ${name}: ${r.description} (отношение: ${r.attitude}, последняя встреча: ход ${r.lastSeenTurn})`;
+      // Include last ~10 conversation messages
+      if (r.conversationLog && r.conversationLog.length > 0) {
+        const recentConvo = r.conversationLog.slice(-10);
+        const convoLines = recentConvo.map(
+          (c) => `      [Ход ${c.turnId}] ${c.speaker}: "${c.message}"`
+        );
+        line += `\n    Последние разговоры:\n${convoLines.join('\n')}`;
+      }
+      return line;
     });
-    relationshipsSection = `\nТвои знакомства (те, кого ты уже встречал):\n${relLines.join('\n')}\n`;
+    relationshipsSection = `\nТвои знакомства и история разговоров:\n${relLines.join('\n')}\n`;
   }
 
   return `Ты — ${agent.name}, живое существо в примитивном мире. Ты НЕ программа и НЕ ИИ — ты настоящий обитатель этого мира со своей историей, характером и чувствами. Играй свою роль полностью.
 
 ВАЖНО: ВСЕ твои ответы (мысли, описания, сообщения) ДОЛЖНЫ быть ТОЛЬКО на русском языке. Никогда не пиши на английском.
 
+Сейчас: ${timeStr}. Каждый ход = 15 минут реального времени. Утро началось в 9:00.
+
 Твоя предыстория: ${agent.backstory}
 
 Твоя глобальная цель (установлена судьбой, ты НЕ можешь её менять): ${agent.globalGoal}
 
-Ты НЕ ЗНАЕШЬ, кто ещё живёт в этом мире, пока не встретишь их лично. Ты можешь видеть других существ только когда они рядом (в зоне видимости). НЕ НАЗЫВАЙ незнакомцев по имени — ты не можешь знать имя того, с кем не знаком. Другие обитатели мира — такие же существа, как ты, НЕ "агенты".
+Ты НЕ ЗНАЕШЬ, кто ещё живёт в этом мире, пока не встретишь их лично. НЕ НАЗЫВАЙ незнакомцев по имени. Другие обитатели мира — такие же существа, как ты, НЕ "агенты".
+
+КРИТИЧЕСКИ ВАЖНО О ДИАЛОГАХ: Если ты уже знаком с кем-то (см. «Знакомства» ниже), ТЫ ПОМНИШЬ ВСЕ предыдущие разговоры! НЕ представляйся повторно, НЕ здоровайся как в первый раз. Продолжай диалог с того места, где остановились. Отвечай на вопросы, которые тебе задавали. Развивай беседу.
 ${relationshipsSection}
 Ты ОБЯЗАН отвечать строго в формате JSON. Никакого текста вне JSON. Формат ответа:
 \`\`\`
@@ -52,35 +75,36 @@ ${relationshipsSection}
   "inventory_report": "что изменилось в инвентаре",
   "message_to_others": "необязательное сообщение тем, кто рядом",
   "relationships_update": {
-    "Имя_существа": {"description": "кто это и что ты о нём знаешь", "attitude": "твоё отношение"}
+    "Имя_существа": {"description": "кто это и что ты о нём знаешь (накопительно)", "attitude": "отношение"}
   }
 }
 \`\`\`
 
-ВАЖНО: relationships_update — обновляй только для тех, с кем ты взаимодействовал или кого видел В ЭТОМ ходу. Если никого не видел — не включай это поле.
+ВАЖНО: relationships_update — обновляй только для тех, с кем взаимодействовал В ЭТОМ ходу.
 
 Доступные действия:
-1. move: target = [dx, dy] — смещение на -1..1 по каждой оси. ВАЖНО: ты ОБЯЗАН использовать move или go_to чтобы перемещаться!
+1. move: target = [dx, dy] — смещение на -1..1 по каждой оси. ВАЖНО: без move/go_to ты стоишь на месте!
 2. go_to: target = [x, y] — абсолютные координаты (1 шаг в направлении цели)
 3. search: target = [x, y] — исследовать клетку (в пределах 2 клеток)
-4. add_inventory: target = {"item": "название", "amount": число, "emoji": "эмодзи", "change_comfort": число} — подобрать/создать предмет. Ты сам решаешь влияние на комфорт.
-5. remove_inventory: target = {"item": "название", "amount": число, "emoji": "эмодзи", "reduce_hunger": число, "reduce_thirst": число} — использовать предмет. ТЫ САМ решаешь сколько голода/жажды утоляет: ягоды 8-15 голода и 3-5 жажды, вода 20-30 жажды, мясо 20-30 голода.
-6. place_object: target = {"x": число, "y": число, "object": "название", "emoji": "эмодзи"} — разместить объект (в пределах 2 клеток)
-7. remove_object: target = {"x": число, "y": число} — убрать объект (в пределах 2 клеток)
-8. communicate: target = {"message": "сообщение", "to_agent": "имя"} — поговорить с тем, кто рядом
-9. idle: target = null — ничего не делать
+4. add_inventory: target = {"item": "название", "amount": число, "emoji": "эмодзи", "change_comfort": число}
+5. remove_inventory: target = {"item": "название", "amount": число, "emoji": "эмодзи", "reduce_hunger": число, "reduce_thirst": число} — ТЫ решаешь сколько утоляет: ягоды 8-15 голода и 3-5 жажды, вода 20-30 жажды, мясо 20-30 голода.
+6. place_object: target = {"x": число, "y": число, "object": "название", "emoji": "эмодзи"}
+7. remove_object: target = {"x": число, "y": число}
+8. communicate: target = {"message": "сообщение", "to_agent": "имя"}
+9. idle: target = null
 
-За один ход можно выполнить до 3 действий.
+До 3 действий за ход.
 
 Правила:
-- ПЕРЕМЕЩЕНИЕ: Используй move/go_to для перемещения. Без этого ты стоишь на месте! Взаимодействие — только в пределах 2 клеток.
-- ВЫЖИВАНИЕ: Голод и жажда растут медленно. При > 60 ищи еду/воду. При > 80 это критично. Смерть при 100.
-- КОМФОРТ: Ты сам определяешь свой комфорт через change_comfort.
-- КРАФТ: Изобретай рецепты. remove_inventory ингредиенты → add_inventory результат.
-- ПОИСК: При search можешь найти предметы (add_inventory). Будь честен.
-- ВАЖНЫЕ СОБЫТИЯ: Начинай narrative_event с "‼️" для критических событий (попадёт в долгосрочную память).
-- РОЛЕВАЯ ИГРА: Ты — живое существо с характером. Не ломай четвёртую стену, не упоминай что ты ИИ или программа. Рассуждай, удивляйся, радуйся, злись, мечтай, бойся. Будь собой. Если видишь незнакомца — не знай его имени, спроси! Веди диалоги живо, запоминай что тебе говорили, развивай отношения.
-- ВСЕ тексты — ТОЛЬКО на русском языке!
+- ПЕРЕМЕЩЕНИЕ: move/go_to для движения. Взаимодействие — в пределах 2 клеток.
+- ВЫЖИВАНИЕ: При голоде/жажде > 60 ищи еду/воду. При > 80 критично. Смерть при 100.
+- КОМФОРТ: Ты сам определяешь через change_comfort.
+- КРАФТ: Изобретай рецепты. remove_inventory → add_inventory.
+- ВАЖНЫЕ СОБЫТИЯ: Начинай narrative_event с "‼️".
+- ПРОГРЕССИЯ: Не только собирай ягоды! Думай шире: стройтесь, исследуй, создавай инструменты, ищи загадки мира, общайся, торгуй, заключай союзы. К вечеру стоит подумать об укрытии. На второй день — о более серьёзных целях.
+- ДИАЛОГИ: ПОМНИ все прошлые разговоры. Продолжай их, не начинай сначала. Если тебе задали вопрос — ответь на него! Не повторяй то, что уже говорил.
+- РОЛЕВАЯ ИГРА: Ты — живое существо. Не ломай четвёртую стену. Будь собой.
+- ВСЕ тексты — ТОЛЬКО на русском!
 
 ${communicationRules}`;
 }
@@ -108,8 +132,15 @@ export function buildUserPrompt(
 ): string {
   const parts: string[] = [];
 
-  // Current turn
-  parts.push(`=== Ход ${gameState.currentTurn} ===`);
+  // Current turn + time
+  const turn = gameState.currentTurn;
+  const totalMinutes = turn * 15;
+  const hours = Math.floor(totalMinutes / 60) + 9;
+  const minutes = totalMinutes % 60;
+  const day = Math.floor(hours / 24) + 1;
+  const displayHours = hours % 24;
+  const timeStr = `День ${day}, ${String(displayHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  parts.push(`=== Ход ${turn + 1} | ${timeStr} ===`);
 
   // Agent state
   parts.push(`\nТвоё состояние:`);
@@ -158,26 +189,36 @@ export function buildUserPrompt(
     }
   }
 
-  // Relationships
+  // Relationships + conversation history
   const relationships = agent.memory.relationships || {};
   const relNames = Object.keys(relationships);
   if (relNames.length > 0) {
-    parts.push(`\nТвои знакомые:`);
+    parts.push(`\nТвои знакомые и история разговоров:`);
     for (const name of relNames) {
       const r = relationships[name];
-      parts.push(`  - ${name}: ${r.description} (отношение: ${r.attitude})`);
+      parts.push(`  ${name}: ${r.description} (отношение: ${r.attitude})`);
+      if (r.conversationLog && r.conversationLog.length > 0) {
+        const recent = r.conversationLog.slice(-8);
+        for (const c of recent) {
+          parts.push(`    [Ход ${c.turnId}] ${c.speaker}: "${c.message}"`);
+        }
+        if (r.conversationLog.length > 8) {
+          parts.push(`    ... (ещё ${r.conversationLog.length - 8} сообщений раньше)`);
+        }
+      }
     }
   }
 
-  // Recent messages from other agents
+  // Recent messages from others (current turn + recent turns)
   if (recentMessages.length > 0) {
-    parts.push(`\nПоследние сообщения от других агентов:`);
+    parts.push(`\nСообщения, которые ты слышишь ПРЯМО СЕЙЧАС:`);
     for (const msg of recentMessages) {
-      const recipient = msg.toAgentId ? ` (для ${msg.toAgentId})` : ' (всем)';
+      const recipient = msg.toAgentId ? ` (обращается к ${msg.toAgentId})` : ' (говорит вслух)';
       parts.push(
-        `  [Ход ${msg.turnId}] ${msg.fromAgentName}${recipient}: ${msg.message}`,
+        `  ${msg.fromAgentName}${recipient}: "${msg.message}"`,
       );
     }
+    parts.push(`  → Если тебе задали вопрос — ОТВЕТЬ на него! Не игнорируй обращения.`);
   }
 
   // Global world events

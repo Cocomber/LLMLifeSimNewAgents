@@ -247,6 +247,7 @@ export default function AgentDetailModal({ agent, turnHistory, onClose, onGoalCh
                   const attitudeColor = r.attitude.includes('друж') || r.attitude.includes('тёпл') || r.attitude.includes('добр') ? '#22c55e'
                     : r.attitude.includes('вражд') || r.attitude.includes('негат') || r.attitude.includes('опас') ? '#ef4444'
                     : '#eab308';
+                  const convo = r.conversationLog || [];
                   return (
                     <div key={name} style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', borderLeft: `3px solid ${attitudeColor}`, background: 'var(--bg-primary)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
@@ -259,8 +260,24 @@ export default function AgentDetailModal({ agent, turnHistory, onClose, onGoalCh
                         {r.description}
                       </div>
                       <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '4px', opacity: 0.7 }}>
-                        Последняя встреча: ход {r.lastSeenTurn}
+                        Последняя встреча: ход {r.lastSeenTurn} | Сообщений: {convo.length}
                       </div>
+                      {convo.length > 0 && (
+                        <details style={{ marginTop: '6px' }}>
+                          <summary style={{ fontSize: '0.72rem', color: 'var(--accent)', cursor: 'pointer', userSelect: 'none' }}>
+                            История диалога ({convo.length})
+                          </summary>
+                          <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '3px', maxHeight: '200px', overflowY: 'auto' }}>
+                            {convo.map((c, ci) => (
+                              <div key={ci} style={{ fontSize: '0.72rem', padding: '3px 6px', borderRadius: '4px', background: c.speaker === agent.name ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)' }}>
+                                <span style={{ color: 'var(--text-secondary)', marginRight: '4px' }}>[{c.turnId}]</span>
+                                <span style={{ fontWeight: 600, color: c.speaker === agent.name ? '#3b82f6' : attitudeColor }}>{c.speaker}:</span>
+                                {' '}{c.message}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
                     </div>
                   );
                 });

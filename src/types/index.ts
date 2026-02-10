@@ -35,11 +35,18 @@ export interface MemoryEvent {
   important: boolean;
 }
 
+export interface ConversationEntry {
+  turnId: number;
+  speaker: string; // name of who said it
+  message: string;
+}
+
 export interface AgentRelationship {
   name: string;
   description: string;
-  attitude: string; // e.g. "дружелюбный", "нейтральный", "враждебный"
+  attitude: string;
   lastSeenTurn: number;
+  conversationLog: ConversationEntry[]; // full conversation history with this entity
 }
 
 export interface AgentMemory {
@@ -95,6 +102,10 @@ export interface AgentConfig {
   globalGoal: string;
   emoji: string;
   color: string;
+  // Optional user-defined overrides (skip LLM init if name is provided)
+  customName?: string;
+  customAge?: number;
+  customBackstory?: string;
 }
 
 export interface AgentState {

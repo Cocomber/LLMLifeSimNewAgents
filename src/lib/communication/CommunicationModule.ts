@@ -52,6 +52,7 @@ export function getMessagesForAgent(
   agentPosition: Position,
   range: number,
   mode: CommunicationMode,
+  agentName?: string,
 ): ChatMessage[] {
   if (mode === 'none' || mode === 'signals') {
     return [];
@@ -64,13 +65,16 @@ export function getMessagesForAgent(
       return false;
     }
 
-    // Direct messages addressed to this agent are always visible
+    // Direct messages addressed to this agent by ID or by NAME are always visible
     if (msg.toAgentId === agentId) {
+      return true;
+    }
+    if (agentName && msg.toAgentId && msg.toAgentId === agentName) {
       return true;
     }
 
     // Skip messages that are privately addressed to someone else
-    if (msg.toAgentId && msg.toAgentId !== agentId) {
+    if (msg.toAgentId && msg.toAgentId !== agentId && (!agentName || msg.toAgentId !== agentName)) {
       return false;
     }
 

@@ -79,20 +79,34 @@ export async function initializeAgent(
   agentConfig: AgentConfig,
   gameState: GameState,
 ): Promise<AgentState> {
-  const initPrompt = buildInitPrompt();
-  const systemPrompt = 'Ты — креативный создатель персонажей. Отвечай ТОЛЬКО на русском языке, строго в формате JSON.';
+  let name: string;
+  let backstory: string;
 
-  const response = await callLLM(
-    agentConfig.model,
-    systemPrompt,
-    initPrompt,
-    gameState.apiKeys,
-  );
+  // If the user provided a custom name, skip LLM generation
+  if (agentConfig.customName && agentConfig.customName.trim()) {
+    name = agentConfig.customName.trim();
+    const agePart = agentConfig.customAge ? `, ${agentConfig.customAge} лет` : '';
+    backstory = agentConfig.customBackstory?.trim()
+      || `${name}${agePart}. Таинственный обитатель этого мира.`;
+    if (agentConfig.customAge && !agentConfig.customBackstory) {
+      backstory = `${name}${agePart}. Таинственный обитатель этого мира, ищущий своё предназначение.`;
+    }
+  } else {
+    // Generate name + backstory via LLM
+    const initPrompt = buildInitPrompt();
+    const systemPrompt = 'Ты — креативный создатель персонажей. Отвечай ТОЛЬКО на русском языке, строго в формате JSON.';
 
-  // The init prompt asks for {name, backstory} — extract from the raw parsed response
-  const rawResponse = response as any;
-  const name: string = rawResponse.name || `Agent-${agentConfig.id.slice(0, 4)}`;
-  const backstory: string = rawResponse.backstory || 'A mysterious wanderer with no memories.';
+    const response = await callLLM(
+      agentConfig.model,
+      systemPrompt,
+      initPrompt,
+      gameState.apiKeys,
+    );
+
+    const rawResponse = response as any;
+    name = rawResponse.name || `Странник-${agentConfig.id.slice(0, 4)}`;
+    backstory = rawResponse.backstory || 'Таинственный странник, потерявший память.';
+  }
 
   const position = findUnoccupiedPosition(gameState);
 
@@ -172,10 +186,11 @@ export async function generateTurn(gameState: GameState): Promise<GameState> {
       agent.position,
       gameState.settings.visibilityRange,
       gameState.settings.communicationMode,
+      agent.name, // Pass agent name so direct messages by name are matched
     );
 
     // (c) Build prompts
-    const systemPrompt = buildSystemPrompt(agent, gameState.settings, allAgentNames);
+    const systemPrompt = buildSystemPrompt(agent, gameState.settings, allAgentNames, nextTurnId);
     const userPrompt = buildUserPrompt(agent, gameState, visibleArea, recentMessages);
 
     // (d) Call the LLM
@@ -237,14 +252,81 @@ export async function generateTurn(gameState: GameState): Promise<GameState> {
       const currentRels = { ...(updatedMemory.relationships || {}) };
       for (const [name, update] of Object.entries(llmResponse.relationships_update)) {
         if (update && typeof update === 'object') {
+          const existing = currentRels[name];
           currentRels[name] = {
             name,
             description: String((update as any).description || ''),
             attitude: String((update as any).attitude || 'нейтральный'),
             lastSeenTurn: nextTurnId,
+            conversationLog: existing?.conversationLog || [],
           };
         }
       }
+      updatedMemory = { ...updatedMemory, relationships: currentRels };
+    }
+
+    // (f3) Store conversation messages in relationship logs (both sent and received)
+    {
+      const currentRels = { ...(updatedMemory.relationships || {}) };
+
+      // Messages THIS agent sent this turn
+      for (const msg of agentMessages) {
+        // Find recipient name
+        let recipientName = msg.toAgentId || undefined;
+        if (recipientName) {
+          // toAgentId might be a name or an id; try to resolve
+          const recipientAgent = updatedAgents.find(
+            (a) => a.id === recipientName || a.name === recipientName
+          );
+          if (recipientAgent) recipientName = recipientAgent.name;
+
+          if (!currentRels[recipientName]) {
+            currentRels[recipientName] = {
+              name: recipientName,
+              description: 'Кто-то, с кем я разговаривал',
+              attitude: 'нейтральный',
+              lastSeenTurn: nextTurnId,
+              conversationLog: [],
+            };
+          }
+          currentRels[recipientName] = {
+            ...currentRels[recipientName],
+            conversationLog: [
+              ...currentRels[recipientName].conversationLog,
+              { turnId: nextTurnId, speaker: agent.name, message: msg.message },
+            ],
+          };
+        }
+      }
+
+      // Messages received by this agent this turn
+      for (const msg of recentMessages) {
+        // Only store messages from this turn
+        if (msg.turnId !== 0) { // turnId 0 means not yet set; current turn messages have turnId set by ActionProcessor
+          const senderName = msg.fromAgentName;
+          if (!currentRels[senderName]) {
+            currentRels[senderName] = {
+              name: senderName,
+              description: 'Кто-то, кто со мной разговаривал',
+              attitude: 'нейтральный',
+              lastSeenTurn: nextTurnId,
+              conversationLog: [],
+            };
+          }
+          // Avoid duplicate entries (msg might already be logged)
+          const lastEntry = currentRels[senderName].conversationLog.slice(-1)[0];
+          if (!lastEntry || lastEntry.turnId !== msg.turnId || lastEntry.message !== msg.message || lastEntry.speaker !== senderName) {
+            currentRels[senderName] = {
+              ...currentRels[senderName],
+              conversationLog: [
+                ...currentRels[senderName].conversationLog,
+                { turnId: msg.turnId || nextTurnId, speaker: senderName, message: msg.message },
+              ],
+            };
+          }
+        }
+      }
+
       updatedMemory = { ...updatedMemory, relationships: currentRels };
     }
 

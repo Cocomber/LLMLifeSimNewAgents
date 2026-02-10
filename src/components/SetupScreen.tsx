@@ -330,79 +330,112 @@ export default function SetupScreen({ onGameCreated }: SetupScreenProps) {
               <div
                 key={agent.id}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
                   padding: 12,
                   borderRadius: 10,
                   border: `1px solid ${agent.color}44`,
                   backgroundColor: `${agent.color}08`,
                 }}
               >
-                {/* Emoji + color indicator */}
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 10,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '1.5rem',
-                    backgroundColor: `${agent.color}22`,
-                    border: `2px solid ${agent.color}`,
-                    flexShrink: 0,
-                  }}
-                >
-                  {agent.emoji}
-                </div>
-
-                {/* Model selector */}
-                <div style={{ flex: '0 0 220px' }}>
-                  <label
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {/* Emoji + color indicator */}
+                  <div
                     style={{
-                      display: 'block',
-                      fontSize: '0.7rem',
-                      color: 'var(--text-secondary)',
-                      marginBottom: 2,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.5rem',
+                      backgroundColor: `${agent.color}22`,
+                      border: `2px solid ${agent.color}`,
+                      flexShrink: 0,
                     }}
                   >
-                    Модель
-                  </label>
-                  <select
-                    className="select"
-                    value={agent.model}
-                    onChange={(e) => updateAgent(idx, { model: e.target.value as LLMModel })}
-                    style={{ width: '100%' }}
-                  >
-                    {ALL_MODELS.map((m) => (
-                      <option key={m} value={m}>
-                        {LLM_MODEL_LABELS[m]}
-                      </option>
-                    ))}
-                  </select>
+                    {agent.emoji}
+                  </div>
+
+                  {/* Model selector */}
+                  <div style={{ flex: '0 0 220px' }}>
+                    <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: 2 }}>
+                      Модель
+                    </label>
+                    <select
+                      className="select"
+                      value={agent.model}
+                      onChange={(e) => updateAgent(idx, { model: e.target.value as LLMModel })}
+                      style={{ width: '100%' }}
+                    >
+                      {ALL_MODELS.map((m) => (
+                        <option key={m} value={m}>
+                          {LLM_MODEL_LABELS[m]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Global goal */}
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: 2 }}>
+                      Глобальная цель
+                    </label>
+                    <input
+                      className="input"
+                      type="text"
+                      value={agent.globalGoal}
+                      onChange={(e) => updateAgent(idx, { globalGoal: e.target.value })}
+                      placeholder="Выжить"
+                    />
+                  </div>
                 </div>
 
-                {/* Global goal */}
-                <div style={{ flex: 1 }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: '0.7rem',
-                      color: 'var(--text-secondary)',
-                      marginBottom: 2,
-                    }}
-                  >
-                    Глобальная цель
-                  </label>
-                  <input
-                    className="input"
-                    type="text"
-                    value={agent.globalGoal}
-                    onChange={(e) => updateAgent(idx, { globalGoal: e.target.value })}
-                    placeholder="Выжить"
-                  />
-                </div>
+                {/* Optional custom fields (collapsible) */}
+                <details style={{ marginTop: 8 }}>
+                  <summary style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+                    Задать имя, возраст и историю (опционально)
+                  </summary>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8, marginTop: 8 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: 2 }}>
+                        Имя персонажа
+                      </label>
+                      <input
+                        className="input"
+                        type="text"
+                        value={agent.customName || ''}
+                        onChange={(e) => updateAgent(idx, { customName: e.target.value })}
+                        placeholder="Оставьте пустым для авто-генерации"
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: 2 }}>
+                        Возраст
+                      </label>
+                      <input
+                        className="input"
+                        type="number"
+                        min={1}
+                        max={999}
+                        value={agent.customAge || ''}
+                        onChange={(e) => updateAgent(idx, { customAge: e.target.value ? Number(e.target.value) : undefined })}
+                        placeholder="—"
+                      />
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: 2 }}>
+                      Предыстория
+                    </label>
+                    <textarea
+                      className="input"
+                      value={agent.customBackstory || ''}
+                      onChange={(e) => updateAgent(idx, { customBackstory: e.target.value })}
+                      placeholder="Оставьте пустым для авто-генерации"
+                      rows={2}
+                      style={{ resize: 'vertical', width: '100%' }}
+                    />
+                  </div>
+                </details>
               </div>
             ))}
           </div>

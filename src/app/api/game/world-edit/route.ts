@@ -1,17 +1,26 @@
 import { NextResponse } from 'next/server';
 import { getCurrentGame, setCurrentGame } from '@/lib/engine/GameState';
 import { addObject, removeObject } from '@/lib/engine/World';
-import { WorldObject } from '@/types';
+import { GameState, WorldObject } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(request: Request) {
   try {
-    const game = getCurrentGame();
+    const body = await request.json();
+    let game = getCurrentGame();
+    if (!game && body.gameState) {
+      game = body.gameState as GameState;
+      if (body.apiKeys) game = { ...game, apiKeys: body.apiKeys };
+      setCurrentGame(game);
+    }
     if (!game) {
       return NextResponse.json({ success: false, error: 'No active game' }, { status: 404 });
     }
+    if (body.apiKeys) {
+      game = { ...game, apiKeys: body.apiKeys };
+      setCurrentGame(game);
+    }
 
-    const body = await request.json();
     let updatedGame = { ...game };
 
     switch (body.action) {

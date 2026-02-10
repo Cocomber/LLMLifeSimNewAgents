@@ -3,14 +3,18 @@ import { v4 as uuidv4 } from 'uuid';
 import { generateWorld } from './World';
 import { initializeAgent } from './TurnGenerator';
 
-let currentGame: GameState | null = null;
+// Use globalThis to persist game state across Next.js hot-reloads in dev mode
+const globalForGame = globalThis as unknown as { __llmSimGame: GameState | null };
+if (!globalForGame.__llmSimGame) {
+  globalForGame.__llmSimGame = null;
+}
 
 export function getCurrentGame(): GameState | null {
-  return currentGame;
+  return globalForGame.__llmSimGame;
 }
 
 export function setCurrentGame(game: GameState | null): void {
-  currentGame = game;
+  globalForGame.__llmSimGame = game;
 }
 
 export function createNewGame(
@@ -43,7 +47,7 @@ export function createNewGame(
     globalWorldEvents: [],
   };
 
-  currentGame = game;
+  globalForGame.__llmSimGame = game;
   return game;
 }
 
@@ -57,6 +61,6 @@ export async function initializeAgents(game: GameState): Promise<GameState> {
     game = { ...game, agents: [...agents] };
   }
   game = { ...game, agents };
-  currentGame = game;
+  globalForGame.__llmSimGame = game;
   return game;
 }

@@ -14,7 +14,7 @@ import {
 } from '@/types';
 
 interface SetupScreenProps {
-  onGameCreated: (game: any) => void;
+  onGameCreated: (game: any, apiKeys: ApiKeys) => void;
 }
 
 const COMMUNICATION_LABELS: Record<CommunicationMode, string> = {
@@ -142,7 +142,7 @@ export default function SetupScreen({ onGameCreated }: SetupScreenProps) {
       if (!data.success) {
         throw new Error(data.error || 'Не удалось создать игру');
       }
-      onGameCreated(data.game);
+      onGameCreated(data.game, apiKeys);
     } catch (err: any) {
       setError(err.message ?? 'Неизвестная ошибка');
     } finally {
@@ -164,7 +164,7 @@ export default function SetupScreen({ onGameCreated }: SetupScreenProps) {
       if (!data.success) {
         throw new Error(data.error || 'Не удалось загрузить сохранение');
       }
-      onGameCreated(data.game);
+      onGameCreated(data.game, apiKeys);
     } catch (err: any) {
       setError(err.message ?? 'Неизвестная ошибка');
     } finally {

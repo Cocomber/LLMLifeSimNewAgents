@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import type { TurnRecord, AgentAction } from '@/types';
+import type { TurnRecord, AgentAction, AgentState } from '@/types';
 
 interface PlaybackControlsProps {
   turnHistory: TurnRecord[];
   currentViewTurn: number;
   onViewTurn: (turnId: number) => void;
   maxTurn: number;
+  agents: AgentState[];
 }
 
 function formatAction(action: AgentAction): string {
@@ -40,10 +41,20 @@ export default function PlaybackControls({
   currentViewTurn,
   onViewTurn,
   maxTurn,
+  agents,
 }: PlaybackControlsProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Build lookup map from agent ID to agent object
+  const agentLookup = React.useMemo(() => {
+    const map = new Map<string, AgentState>();
+    for (const agent of agents) {
+      map.set(agent.id, agent);
+    }
+    return map;
+  }, [agents]);
 
   const advanceTurn = useCallback(() => {
     onViewTurn(currentViewTurn < maxTurn ? currentViewTurn + 1 : 0);
@@ -254,7 +265,9 @@ export default function PlaybackControls({
           }}
         >
           {/* Agent actions */}
-          {Object.entries(currentRecord.agentTurns).map(([agentId, turn]) => (
+          {Object.entries(currentRecord.agentTurns).map(([agentId, turn]) => {
+            const agentInfo = agentLookup.get(agentId);
+            return (
             <div
               key={agentId}
               style={{
@@ -262,10 +275,11 @@ export default function PlaybackControls({
                 borderRadius: '6px',
                 backgroundColor: 'var(--bg-secondary, rgba(255,255,255,0.04))',
                 border: '1px solid var(--border)',
+                borderLeft: `4px solid ${agentInfo?.color || 'var(--border)'}`,
               }}
             >
-              <div style={{ fontWeight: 700, marginBottom: '4px' }}>
-                Агент: {agentId}
+              <div style={{ fontWeight: 700, marginBottom: '4px', color: agentInfo?.color || 'var(--text-primary)' }}>
+                {agentInfo?.emoji || '?'} {agentInfo?.name || agentId}
               </div>
 
               {/* Thought */}
@@ -304,7 +318,8 @@ export default function PlaybackControls({
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
 
           {/* World events */}
           {currentRecord.worldEvents.length > 0 && (

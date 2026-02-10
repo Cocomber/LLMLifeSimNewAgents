@@ -220,6 +220,10 @@ export interface LLMAgentResponse {
     type: string;
     target: any;
   }>;
+  messages?: Array<{
+    message: string;
+    to_agent?: string;
+  }>;
   narrative_event: string;
   inventory_report: string;
   message_to_others?: string;

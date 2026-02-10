@@ -475,7 +475,8 @@ export function processFullResponse(
     localGoal: response.local_goal,
   };
 
-  // Process actions (max 3)
+  // Process physical actions (max 3). "communicate" actions are kept for
+  // backward compat — they still produce messages but also consume an action slot.
   const actionsToProcess = (response.actions || []).slice(0, 3) as AgentAction[];
   const {
     updatedAgent: agentAfterActions,
@@ -491,20 +492,42 @@ export function processFullResponse(
     comfortRate
   );
 
-  // Set turnId on all messages
+  // Set turnId on all messages from actions (communicate backward compat)
   for (const msg of messages) {
     msg.turnId = turnId;
   }
 
-  // Create a chat message if message_to_others exists and is non-empty
+  // Process the new "messages" field (separate from actions, up to 3)
+  if (response.messages && Array.isArray(response.messages)) {
+    const msgs = response.messages.slice(0, 3);
+    for (const m of msgs) {
+      if (!m || !m.message || typeof m.message !== 'string' || !m.message.trim()) continue;
+      messages.push({
+        turnId,
+        fromAgentId: agentAfterDecay.id,
+        fromAgentName: agentAfterDecay.name,
+        ...(m.to_agent ? { toAgentId: String(m.to_agent) } : {}),
+        message: m.message,
+        position: { ...agentAfterDecay.position },
+      });
+    }
+  }
+
+  // Backward compat: message_to_others as broadcast
   if (response.message_to_others && response.message_to_others.trim() !== '') {
-    messages.push({
-      turnId,
-      fromAgentId: agentAfterDecay.id,
-      fromAgentName: agentAfterDecay.name,
-      message: response.message_to_others,
-      position: { ...agentAfterDecay.position },
-    });
+    // Only add if not already covered by new messages field
+    const alreadyHasIt = messages.some(
+      (msg) => msg.message === response.message_to_others && msg.fromAgentId === agentAfterDecay.id
+    );
+    if (!alreadyHasIt) {
+      messages.push({
+        turnId,
+        fromAgentId: agentAfterDecay.id,
+        fromAgentName: agentAfterDecay.name,
+        message: response.message_to_others,
+        position: { ...agentAfterDecay.position },
+      });
+    }
   }
 
   return {

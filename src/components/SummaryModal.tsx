@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import type { TurnRecord, AgentState } from '@/types';
+import React, { useState, useMemo } from 'react';
+import type { TurnRecord, AgentState, LLMModel, ApiKeys } from '@/types';
+import { LLM_MODEL_LABELS, getProviderForModel } from '@/types';
 
 interface SummaryModalProps {
   turnHistory: TurnRecord[];
@@ -17,6 +18,23 @@ export default function SummaryModal({ turnHistory, agents, maxTurn, apiKeys, on
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Build list of available models based on which API keys are provided
+  const availableModels = useMemo(() => {
+    const models: { value: LLMModel; label: string }[] = [];
+    const allModels = Object.keys(LLM_MODEL_LABELS) as LLMModel[];
+    for (const model of allModels) {
+      const provider = getProviderForModel(model);
+      if (apiKeys[provider]) {
+        models.push({ value: model, label: LLM_MODEL_LABELS[model] });
+      }
+    }
+    return models;
+  }, [apiKeys]);
+
+  const [selectedModel, setSelectedModel] = useState<LLMModel>(
+    availableModels.length > 0 ? availableModels[0].value : 'gpt-4o-mini'
+  );
+
   const handleGenerate = async () => {
     setLoading(true);
     setError(null);
@@ -31,6 +49,7 @@ export default function SummaryModal({ turnHistory, agents, maxTurn, apiKeys, on
           turnHistory,
           agents,
           apiKeys,
+          model: selectedModel,
         }),
       });
       const data = await res.json();
@@ -59,9 +78,9 @@ export default function SummaryModal({ turnHistory, agents, maxTurn, apiKeys, on
         </div>
 
         {/* Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-            Количество ходов:
+            Ходов:
           </label>
           <input
             className="input"
@@ -70,16 +89,27 @@ export default function SummaryModal({ turnHistory, agents, maxTurn, apiKeys, on
             max={maxTurn}
             value={turnCount}
             onChange={(e) => setTurnCount(Math.max(1, Math.min(maxTurn, Number(e.target.value))))}
-            style={{ width: '80px', textAlign: 'center' }}
+            style={{ width: '70px', textAlign: 'center' }}
             disabled={loading}
           />
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            (последние {turnCount} из {maxTurn})
-          </span>
+          <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+            Модель:
+          </label>
+          <select
+            className="input"
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value as LLMModel)}
+            disabled={loading || availableModels.length === 0}
+            style={{ minWidth: '160px', padding: '6px 8px' }}
+          >
+            {availableModels.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
           <button
             className="btn btn-primary"
             onClick={handleGenerate}
-            disabled={loading || maxTurn === 0}
+            disabled={loading || maxTurn === 0 || availableModels.length === 0}
             style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}
           >
             {loading ? <span className="loading-pulse">Генерация...</span> : 'Сгенерировать'}
@@ -128,7 +158,7 @@ export default function SummaryModal({ turnHistory, agents, maxTurn, apiKeys, on
             color: 'var(--text-secondary)',
             fontSize: '0.85rem',
           }}>
-            Выберите количество ходов и нажмите «Сгенерировать» для создания саммари
+            Выберите количество ходов и модель, затем нажмите «Сгенерировать»
           </div>
         )}
       </div>

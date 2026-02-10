@@ -6,11 +6,12 @@ import { callLLM } from '@/lib/llm/providers';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { turnCount, turnHistory, agents, apiKeys } = body as {
+    const { turnCount, turnHistory, agents, apiKeys, model: requestedModel } = body as {
       turnCount: number;
       turnHistory: TurnRecord[];
       agents: AgentState[];
       apiKeys: ApiKeys;
+      model?: LLMModel;
     };
 
     if (!turnHistory || turnHistory.length === 0) {
@@ -67,20 +68,18 @@ export async function POST(request: Request) {
       return lines.join('\n');
     }).join('\n\n');
 
-    // Find any available model to use for summary
+    // Use requested model if provided and its provider has a key; otherwise auto-select
     let summaryModel: LLMModel = 'gpt-4o-mini';
-    if (apiKeys.anthropic) summaryModel = 'claude-haiku-4-20250414';
-    else if (apiKeys.openai) summaryModel = 'gpt-4o-mini';
-    else if (apiKeys.deepseek) summaryModel = 'deepseek-chat';
-    else if (apiKeys.gemini) summaryModel = 'gemini-2.0-flash';
-
-    // Also check if any agent model's provider has a key
-    for (const agent of agents) {
-      const provider = getProviderForModel(agent.model);
+    if (requestedModel) {
+      const provider = getProviderForModel(requestedModel);
       if (apiKeys[provider]) {
-        summaryModel = agent.model;
-        break;
+        summaryModel = requestedModel;
       }
+    } else {
+      if (apiKeys.anthropic) summaryModel = 'claude-haiku-4-20250414';
+      else if (apiKeys.openai) summaryModel = 'gpt-4o-mini';
+      else if (apiKeys.deepseek) summaryModel = 'deepseek-chat';
+      else if (apiKeys.gemini) summaryModel = 'gemini-2.0-flash';
     }
 
     const systemPrompt = `Ты — рассказчик и хронист мира симуляции жизни. Твоя задача — написать увлекательное и подробное описание событий, которые произошли за указанный период. Пиши ТОЛЬКО на русском языке. Пиши в стиле художественного повествования, как хроникёр, наблюдающий за жизнью обитателей мира. Упоминай имена персонажей, их действия, взаимоотношения, решения и ключевые события. Не используй слова "агент", "ИИ", "программа" — называй их по именам или "обитатели", "существа", "путники".`;

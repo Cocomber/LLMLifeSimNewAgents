@@ -170,12 +170,13 @@ export async function generateTurn(gameState: GameState): Promise<GameState> {
       continue;
     }
 
-    // (a) Get visible area for this agent
+    // (a) Get visible area for this agent (pass relationships to hide unknown names)
     const visibleArea = getVisibleArea(
       currentWorld,
       updatedAgents,
       agent.id,
       gameState.settings.visibilityRange,
+      agent.memory.relationships,
     );
 
     // (b) Get recent messages visible to this agent (history + current turn)

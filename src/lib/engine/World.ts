@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { Position, WorldObject, WorldState, AgentState } from '@/types';
+import type { Position, WorldObject, WorldState, AgentState, AgentRelationship } from '@/types';
 
 // ==================== Helper Utilities ====================
 
@@ -169,11 +169,20 @@ export function getVisibleArea(
   world: WorldState,
   agents: AgentState[],
   currentAgentId: string,
-  range: number
+  range: number,
+  knownRelationships?: Record<string, AgentRelationship>
 ): string {
   const currentAgent = agents.find((a) => a.id === currentAgentId);
   if (!currentAgent) {
     return 'Ты ничего не видишь (агент не найден).';
+  }
+
+  // Build a set of known names from relationships
+  const knownNames = new Set<string>();
+  if (knownRelationships) {
+    for (const name of Object.keys(knownRelationships)) {
+      knownNames.add(name);
+    }
   }
 
   const pos = currentAgent.position;
@@ -240,13 +249,16 @@ export function getVisibleArea(
       const atSameSpot =
         agent.position.x === pos.x && agent.position.y === pos.y;
 
+      // Show real name only if agent is known (exists in relationships)
+      const displayName = knownNames.has(agent.name) ? agent.name : 'Незнакомец';
+
       if (atSameSpot) {
         lines.push(
-          `  ${agent.emoji} ${agent.name} — на твоей клетке (${agent.position.x}, ${agent.position.y})`
+          `  ${agent.emoji} ${displayName} — на твоей клетке (${agent.position.x}, ${agent.position.y})`
         );
       } else {
         lines.push(
-          `  ${agent.emoji} ${agent.name} — ${dist} кл. ${dirLabel}, позиция (${agent.position.x}, ${agent.position.y})`
+          `  ${agent.emoji} ${displayName} — ${dist} кл. ${dirLabel}, позиция (${agent.position.x}, ${agent.position.y})`
         );
       }
     }

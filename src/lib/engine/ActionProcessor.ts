@@ -352,8 +352,24 @@ export function processActions(
             const t = target as any;
             const item = String(t.item || '');
             const amount = Number(t.amount) || 1;
-            const reduce_hunger = t.reduce_hunger !== undefined ? Number(t.reduce_hunger) : undefined;
-            const reduce_thirst = t.reduce_thirst !== undefined ? Number(t.reduce_thirst) : undefined;
+            let reduce_hunger = t.reduce_hunger !== undefined ? Number(t.reduce_hunger) : undefined;
+            let reduce_thirst = t.reduce_thirst !== undefined ? Number(t.reduce_thirst) : undefined;
+
+            // Fallback: if LLM didn't provide reduce_hunger/reduce_thirst, infer from item name
+            if (reduce_hunger === undefined && reduce_thirst === undefined) {
+              const itemLower = item.toLowerCase();
+              const emojiStr = String(t.emoji || '');
+              // Food items: berries, meat, fish, mushrooms, etc.
+              if (itemLower.match(/ягод|берр|berry|гриб|mushroom|мяс|meat|рыб|fish|фрукт|fruit|яблок|apple|орех|nut|хлеб|bread|еда|food/) || emojiStr.match(/🍓|🍎|🍖|🍗|🐟|🍄|🫐|🍇|🥜|🍞|🥩/)) {
+                reduce_hunger = 10 * amount;
+                reduce_thirst = 3 * amount;
+              }
+              // Water/drink items
+              else if (itemLower.match(/вод[аыуе]|water|напит|drink|сок|juice/) || emojiStr.match(/💧|🥤|🧃|🫗/)) {
+                reduce_thirst = 25 * amount;
+              }
+            }
+
             currentAgent = processRemoveInventory(
               currentAgent,
               item,

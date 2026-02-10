@@ -134,7 +134,7 @@ export default function SetupScreen({ onGameCreated }: SetupScreenProps) {
           settings: {
             communicationMode,
             visibilityRange,
-            needsDecayRate: { hunger: 5, thirst: 7, comfort: 3 },
+            needsDecayRate: { hunger: 2, thirst: 3, comfort: 0 },
           },
         }),
       });

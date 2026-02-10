@@ -43,12 +43,12 @@ export function parseLLMResponse(text: string): LLMAgentResponse {
 
   // 4. Fallback: return a default idle response with the raw text as thought
   return {
-    goal: 'survive',
-    local_goal: 'figure out what to do',
+    goal: '',
+    local_goal: 'разобраться что делать',
     thought: text.slice(0, 500),
     actions: [{ type: 'idle', target: null }],
-    narrative_event: 'stood around looking confused.',
-    inventory_report: 'unchanged',
+    narrative_event: 'Стоял в замешательстве, не понимая что происходит.',
+    inventory_report: 'без изменений',
   };
 }
 
@@ -238,12 +238,12 @@ export async function callLLM(
 
     // Return a graceful fallback response so the simulation can continue
     return {
-      goal: 'survive',
-      local_goal: 'recover from confusion',
-      thought: `LLM call failed: ${error instanceof Error ? error.message : String(error)}`,
+      goal: '',
+      local_goal: 'оправиться от замешательства',
+      thought: `Ошибка вызова LLM: ${error instanceof Error ? error.message : String(error)}`,
       actions: [{ type: 'idle', target: null }],
-      narrative_event: 'seemed momentarily dazed, unable to think clearly.',
-      inventory_report: 'unchanged',
+      narrative_event: 'На мгновение замер, не в силах собраться с мыслями.',
+      inventory_report: 'без изменений',
     };
   }
 }

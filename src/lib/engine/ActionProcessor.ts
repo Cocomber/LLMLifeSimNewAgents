@@ -280,88 +280,146 @@ export function processActions(
   const limitedActions = actions.slice(0, 3);
 
   for (const action of limitedActions) {
-    switch (action.type) {
-      case 'move': {
-        const [dx, dy] = action.target;
-        currentAgent = processMove(currentAgent, dx, dy, currentWorld);
-        break;
-      }
+    try {
+      const target = action.target;
+      switch (action.type) {
+        case 'move': {
+          // Support both array [dx, dy] and object {x, y} / {dx, dy} formats
+          let dx = 0, dy = 0;
+          if (Array.isArray(target)) {
+            dx = Number(target[0]) || 0;
+            dy = Number(target[1]) || 0;
+          } else if (target && typeof target === 'object') {
+            dx = Number((target as any).dx ?? (target as any).x ?? 0);
+            dy = Number((target as any).dy ?? (target as any).y ?? 0);
+          }
+          // Clamp to -1..1 for move
+          dx = Math.max(-1, Math.min(1, dx));
+          dy = Math.max(-1, Math.min(1, dy));
+          currentAgent = processMove(currentAgent, dx, dy, currentWorld);
+          break;
+        }
 
-      case 'go_to': {
-        const [targetX, targetY] = action.target;
-        currentAgent = processGoTo(currentAgent, targetX, targetY, currentWorld);
-        break;
-      }
+        case 'go_to': {
+          // Support both array [x, y] and object {x, y} formats
+          let targetX = 0, targetY = 0;
+          if (Array.isArray(target)) {
+            targetX = Number(target[0]) || 0;
+            targetY = Number(target[1]) || 0;
+          } else if (target && typeof target === 'object') {
+            targetX = Number((target as any).x ?? 0);
+            targetY = Number((target as any).y ?? 0);
+          }
+          currentAgent = processGoTo(currentAgent, targetX, targetY, currentWorld);
+          break;
+        }
 
-      case 'search': {
-        const [sx, sy] = action.target;
-        const result = processSearch(currentAgent, sx, sy, currentWorld);
-        currentAgent = result.agent;
-        currentWorld = result.world;
-        break;
-      }
+        case 'search': {
+          let sx = 0, sy = 0;
+          if (Array.isArray(target)) {
+            sx = Number(target[0]) || 0;
+            sy = Number(target[1]) || 0;
+          } else if (target && typeof target === 'object') {
+            sx = Number((target as any).x ?? 0);
+            sy = Number((target as any).y ?? 0);
+          }
+          const result = processSearch(currentAgent, sx, sy, currentWorld);
+          currentAgent = result.agent;
+          currentWorld = result.world;
+          break;
+        }
 
-      case 'add_inventory': {
-        const { item, amount, emoji, change_comfort } = action.target;
-        currentAgent = processAddInventory(
-          currentAgent,
-          item,
-          amount,
-          emoji,
-          change_comfort
-        );
-        break;
-      }
+        case 'add_inventory': {
+          if (target && typeof target === 'object') {
+            const t = target as any;
+            const item = String(t.item || 'предмет');
+            const amount = Number(t.amount) || 1;
+            const emoji = String(t.emoji || '📦');
+            const change_comfort = t.change_comfort !== undefined ? Number(t.change_comfort) : undefined;
+            currentAgent = processAddInventory(
+              currentAgent,
+              item,
+              amount,
+              emoji,
+              change_comfort
+            );
+          }
+          break;
+        }
 
-      case 'remove_inventory': {
-        const { item, amount, reduce_hunger, reduce_thirst } = action.target;
-        currentAgent = processRemoveInventory(
-          currentAgent,
-          item,
-          amount,
-          reduce_hunger,
-          reduce_thirst
-        );
-        break;
-      }
+        case 'remove_inventory': {
+          if (target && typeof target === 'object') {
+            const t = target as any;
+            const item = String(t.item || '');
+            const amount = Number(t.amount) || 1;
+            const reduce_hunger = t.reduce_hunger !== undefined ? Number(t.reduce_hunger) : undefined;
+            const reduce_thirst = t.reduce_thirst !== undefined ? Number(t.reduce_thirst) : undefined;
+            currentAgent = processRemoveInventory(
+              currentAgent,
+              item,
+              amount,
+              reduce_hunger,
+              reduce_thirst
+            );
+          }
+          break;
+        }
 
-      case 'place_object': {
-        const { x, y, object: objectName, emoji } = action.target;
-        currentWorld = processPlaceObject(
-          currentAgent,
-          currentWorld,
-          x,
-          y,
-          objectName,
-          emoji
-        );
-        break;
-      }
+        case 'place_object': {
+          if (target && typeof target === 'object') {
+            const t = target as any;
+            const x = Number(t.x ?? 0);
+            const y = Number(t.y ?? 0);
+            const objectName = String(t.object || t.name || 'объект');
+            const emoji = String(t.emoji || '📦');
+            currentWorld = processPlaceObject(
+              currentAgent,
+              currentWorld,
+              x,
+              y,
+              objectName,
+              emoji
+            );
+          }
+          break;
+        }
 
-      case 'remove_object': {
-        const { x, y } = action.target;
-        currentWorld = processRemoveObject(currentAgent, currentWorld, x, y);
-        break;
-      }
+        case 'remove_object': {
+          if (target && typeof target === 'object') {
+            const t = target as any;
+            const x = Number(t.x ?? 0);
+            const y = Number(t.y ?? 0);
+            currentWorld = processRemoveObject(currentAgent, currentWorld, x, y);
+          }
+          break;
+        }
 
-      case 'communicate': {
-        const { message, to_agent } = action.target;
-        const chatMessage: ChatMessage = {
-          turnId: 0, // Will be set by the caller
-          fromAgentId: currentAgent.id,
-          fromAgentName: currentAgent.name,
-          ...(to_agent ? { toAgentId: to_agent } : {}),
-          message,
-          position: { ...currentAgent.position },
-        };
-        messages.push(chatMessage);
-        break;
-      }
+        case 'communicate': {
+          if (target && typeof target === 'object') {
+            const t = target as any;
+            const message = String(t.message || '');
+            const to_agent = t.to_agent ? String(t.to_agent) : undefined;
+            const chatMessage: ChatMessage = {
+              turnId: 0, // Will be set by the caller
+              fromAgentId: currentAgent.id,
+              fromAgentName: currentAgent.name,
+              ...(to_agent ? { toAgentId: to_agent } : {}),
+              message,
+              position: { ...currentAgent.position },
+            };
+            messages.push(chatMessage);
+          }
+          break;
+        }
 
-      case 'idle':
-      default:
-        // No-op
-        break;
+        case 'idle':
+        default:
+          // No-op
+          break;
+      }
+    } catch (e) {
+      // Skip malformed actions silently
+      console.warn('Skipping malformed action:', action, e);
     }
   }
 
@@ -395,14 +453,7 @@ export function processFullResponse(
 } {
   let currentAgent = { ...agent };
 
-  // Update goals from response
-  if (response.goal && response.goal.trim() !== '') {
-    currentAgent = {
-      ...currentAgent,
-      globalGoal: response.goal,
-    };
-  }
-
+  // Only update localGoal from response. globalGoal is controlled exclusively by the player.
   currentAgent = {
     ...currentAgent,
     localGoal: response.local_goal,

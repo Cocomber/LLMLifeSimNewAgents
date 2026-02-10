@@ -80,7 +80,7 @@ export async function initializeAgent(
   gameState: GameState,
 ): Promise<AgentState> {
   const initPrompt = buildInitPrompt();
-  const systemPrompt = 'You are a creative character creator. Respond only in valid JSON.';
+  const systemPrompt = 'Ты — креативный создатель персонажей. Отвечай ТОЛЬКО на русском языке, строго в формате JSON.';
 
   const response = await callLLM(
     agentConfig.model,
@@ -110,7 +110,7 @@ export async function initializeAgent(
     },
     inventory: [],
     globalGoal: agentConfig.globalGoal,
-    localGoal: 'Explore the world',
+    localGoal: 'Исследовать мир',
     model: agentConfig.model,
     memory: createEmptyMemory(),
     alive: true,
@@ -237,7 +237,7 @@ export async function generateTurn(gameState: GameState): Promise<GameState> {
       const summaryPrompt = generateMemorySummaryPrompt(updatedMemory);
       const summaryResponse = await callLLM(
         agent.model,
-        'You are a memory summarization system. Provide a concise summary paragraph.',
+        'Ты — система суммаризации памяти. Напиши краткое резюме на русском языке.',
         summaryPrompt,
         gameState.apiKeys,
       );

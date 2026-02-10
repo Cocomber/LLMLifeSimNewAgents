@@ -173,40 +173,54 @@ export function getVisibleArea(
 ): string {
   const currentAgent = agents.find((a) => a.id === currentAgentId);
   if (!currentAgent) {
-    return 'You cannot see anything (agent not found).';
+    return 'Ты ничего не видишь (агент не найден).';
   }
 
   const pos = currentAgent.position;
   const lines: string[] = [];
 
+  const directionLabels: Record<string, string> = {
+    'north': 'на севере',
+    'south': 'на юге',
+    'east': 'на востоке',
+    'west': 'на западе',
+    'northeast': 'на северо-востоке',
+    'northwest': 'на северо-западе',
+    'southeast': 'на юго-востоке',
+    'southwest': 'на юго-западе',
+    'here': 'здесь',
+    'nearby': 'рядом',
+  };
+
   lines.push(
-    `You are at position (${pos.x}, ${pos.y}) on a ${world.width}x${world.height} grid.`
+    `Ты находишься на позиции (${pos.x}, ${pos.y}) на карте ${world.width}x${world.height}.`
   );
-  lines.push(`Visibility range: ${range} tiles.`);
+  lines.push(`Дальность видимости: ${range} клеток.`);
   lines.push('');
 
   // Visible objects
   const visibleObjects = getVisibleObjects(world, pos, range);
 
   if (visibleObjects.length > 0) {
-    lines.push('Nearby objects:');
+    lines.push('Ближайшие объекты:');
     for (const obj of visibleObjects) {
       const dist = Math.round(distance(pos, obj.position) * 10) / 10;
       const dir = getDirection(pos, obj.position);
+      const dirLabel = directionLabels[dir] || dir;
       const atSameSpot = obj.position.x === pos.x && obj.position.y === pos.y;
 
       if (atSameSpot) {
         lines.push(
-          `  ${obj.emoji} ${obj.type} - at your location (${obj.position.x}, ${obj.position.y})`
+          `  ${obj.emoji} ${obj.type} — на твоей клетке (${obj.position.x}, ${obj.position.y})`
         );
       } else {
         lines.push(
-          `  ${obj.emoji} ${obj.type} - ${dist} tiles to the ${dir} at (${obj.position.x}, ${obj.position.y})`
+          `  ${obj.emoji} ${obj.type} — ${dist} кл. ${dirLabel}, позиция (${obj.position.x}, ${obj.position.y})`
         );
       }
     }
   } else {
-    lines.push('No objects visible nearby.');
+    lines.push('Рядом нет видимых объектов.');
   }
 
   // Visible agents
@@ -218,20 +232,21 @@ export function getVisibleArea(
 
   if (visibleAgents.length > 0) {
     lines.push('');
-    lines.push('Nearby agents:');
+    lines.push('Ближайшие персонажи:');
     for (const agent of visibleAgents) {
       const dist = Math.round(distance(pos, agent.position) * 10) / 10;
       const dir = getDirection(pos, agent.position);
+      const dirLabel = directionLabels[dir] || dir;
       const atSameSpot =
         agent.position.x === pos.x && agent.position.y === pos.y;
 
       if (atSameSpot) {
         lines.push(
-          `  ${agent.emoji} ${agent.name} - at your location (${agent.position.x}, ${agent.position.y})`
+          `  ${agent.emoji} ${agent.name} — на твоей клетке (${agent.position.x}, ${agent.position.y})`
         );
       } else {
         lines.push(
-          `  ${agent.emoji} ${agent.name} - ${dist} tiles to the ${dir} at (${agent.position.x}, ${agent.position.y})`
+          `  ${agent.emoji} ${agent.name} — ${dist} кл. ${dirLabel}, позиция (${agent.position.x}, ${agent.position.y})`
         );
       }
     }

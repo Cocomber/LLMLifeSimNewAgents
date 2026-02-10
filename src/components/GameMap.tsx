@@ -15,10 +15,8 @@ export default function GameMap({ world, agents, selectedAgentId, onCellClick, c
   const grid = useMemo(() => {
     const agentMap = new Map<string, AgentState>();
     for (const agent of agents) {
-      if (agent.alive) {
-        const key = `${agent.position.x},${agent.position.y}`;
-        if (!agentMap.has(key)) agentMap.set(key, agent);
-      }
+      const key = `${agent.position.x},${agent.position.y}`;
+      if (!agentMap.has(key)) agentMap.set(key, agent);
     }
 
     const objectMap = new Map<string, string>();
@@ -56,6 +54,7 @@ export default function GameMap({ world, agents, selectedAgentId, onCellClick, c
         const hasAgent = !!agent;
         const isVisible = visibleSet ? visibleSet.has(key) : false;
 
+        const isDeadAgent = hasAgent && !agent!.alive;
         let className = 'grid-cell';
         if (hasAgent) className += ' agent-here';
         if (isVisible) className += ' visible';
@@ -63,8 +62,8 @@ export default function GameMap({ world, agents, selectedAgentId, onCellClick, c
         const emoji = agent ? agent.emoji : objectEmoji || '';
 
         cells.push(
-          <div key={key} className={className} title={`${x}, ${y}`} onClick={() => onCellClick?.(x, y)}>
-            {emoji}
+          <div key={key} className={className} title={`${x}, ${y}${isDeadAgent ? ' (мёртв)' : ''}`} onClick={() => onCellClick?.(x, y)} style={isDeadAgent ? { opacity: 0.5, position: 'relative' } : undefined}>
+            {emoji}{isDeadAgent && '💀'}
           </div>
         );
       }

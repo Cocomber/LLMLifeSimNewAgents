@@ -82,7 +82,7 @@ export function listSaves(): SaveMeta[] {
       const saveFile: SaveFile = JSON.parse(raw);
 
       metas.push({
-        id: saveFile.gameState.id,
+        id: file, // Use full filename as id so the load API can find it
         name: file.replace('.json', ''),
         turn: saveFile.gameState.currentTurn,
         agentCount: saveFile.gameState.agents.length,

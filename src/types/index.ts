@@ -122,6 +122,11 @@ export interface AgentState {
   model: LLMModel;
   memory: AgentMemory;
   alive: boolean;
+  // Health tracking
+  errorCount?: number;       // consecutive LLM call failures
+  lastError?: string;        // last error message
+  lastErrorTurn?: number;    // turn when last error occurred
+  paused?: boolean;          // user paused this agent
 }
 
 // ==================== Actions ====================

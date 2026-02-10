@@ -11,6 +11,8 @@ interface ControlPanelProps {
   onSendMessage: (message: string) => void;
   onBackToSetup: () => void;
   onOpenSummary: () => void;
+  onOpenAgentSettings: () => void;
+  hasAgentErrors?: boolean;
 }
 
 export default function ControlPanel({
@@ -22,6 +24,8 @@ export default function ControlPanel({
   onSendMessage,
   onBackToSetup,
   onOpenSummary,
+  onOpenAgentSettings,
+  hasAgentErrors,
 }: ControlPanelProps) {
   const [customTurnCount, setCustomTurnCount] = useState(5);
   const [godMessage, setGodMessage] = useState('');
@@ -158,6 +162,33 @@ export default function ControlPanel({
         style={{ whiteSpace: 'nowrap' }}
       >
         Саммари
+      </button>
+
+      {/* ===== Agent Settings Button ===== */}
+      <button
+        className="btn btn-secondary"
+        onClick={onOpenAgentSettings}
+        style={{
+          whiteSpace: 'nowrap',
+          position: 'relative',
+          ...(hasAgentErrors ? { borderColor: '#ef4444', color: '#fca5a5' } : {}),
+        }}
+      >
+        Агенты
+        {hasAgentErrors && (
+          <span
+            style={{
+              position: 'absolute',
+              top: '-4px',
+              right: '-4px',
+              width: '10px',
+              height: '10px',
+              borderRadius: '50%',
+              backgroundColor: '#ef4444',
+              border: '2px solid var(--bg-secondary)',
+            }}
+          />
+        )}
       </button>
 
       {/* ===== Separator ===== */}

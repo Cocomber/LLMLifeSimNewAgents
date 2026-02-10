@@ -11,7 +11,7 @@ import type {
 } from '@/types';
 import { getVisibleArea } from './World';
 import { processFullResponse } from './ActionProcessor';
-import { callLLM } from '../llm/providers';
+import { callLLM, callLLMWithStatus } from '../llm/providers';
 import { buildSystemPrompt, buildUserPrompt, buildInitPrompt } from '../llm/PromptBuilder';
 import {
   addTurnToMemory,
@@ -170,6 +170,22 @@ export async function generateTurn(gameState: GameState): Promise<GameState> {
       continue;
     }
 
+    // Skip paused agents
+    if (agent.paused) {
+      // Record a minimal turn so UI shows the agent is paused
+      agentTurns[agent.id] = {
+        needs: { ...agent.needs },
+        position: { ...agent.position },
+        inventory: [...agent.inventory],
+        thought: '⏸️ Агент приостановлен',
+        actions: [{ type: 'idle', target: null }],
+        narrativeEvent: 'Стоит неподвижно, словно заморожен во времени.',
+        globalGoal: agent.globalGoal,
+        localGoal: agent.localGoal,
+      };
+      continue;
+    }
+
     // (a) Get visible area for this agent (pass relationships to hide unknown names)
     const visibleArea = getVisibleArea(
       currentWorld,
@@ -194,13 +210,14 @@ export async function generateTurn(gameState: GameState): Promise<GameState> {
     const systemPrompt = buildSystemPrompt(agent, gameState.settings, allAgentNames, nextTurnId);
     const userPrompt = buildUserPrompt(agent, gameState, visibleArea, recentMessages);
 
-    // (d) Call the LLM
-    const llmResponse: LLMAgentResponse = await callLLM(
+    // (d) Call the LLM with status tracking
+    const llmResult = await callLLMWithStatus(
       agent.model,
       systemPrompt,
       userPrompt,
       gameState.apiKeys,
     );
+    const llmResponse: LLMAgentResponse = llmResult.response;
 
     // (e) Process the full response: actions, needs decay, messages
     const { needsDecayRate } = gameState.settings;
@@ -352,10 +369,14 @@ export async function generateTurn(gameState: GameState): Promise<GameState> {
       updatedMemory = addSummary(updatedMemory, summaryText);
     }
 
-    // Store updated agent with new memory
+    // Store updated agent with new memory and health status
     const finalAgent: AgentState = {
       ...updatedAgent,
       memory: updatedMemory,
+      // Track LLM call health
+      errorCount: llmResult.success ? 0 : (agent.errorCount || 0) + 1,
+      lastError: llmResult.success ? undefined : llmResult.error,
+      lastErrorTurn: llmResult.success ? agent.lastErrorTurn : nextTurnId,
     };
     updatedAgents[i] = finalAgent;
 

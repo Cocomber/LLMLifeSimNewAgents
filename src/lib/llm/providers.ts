@@ -63,6 +63,23 @@ function getApiKeyForModel(model: LLMModel, apiKeys: ApiKeys): string {
   return key;
 }
 
+// ==================== Retry Helpers ====================
+
+function isRetryableError(error: any): boolean {
+  if (!error) return false;
+  const message = error.message || String(error);
+  // Rate limit (429), server errors (5xx), network failures
+  if (message.includes('429') || message.includes('rate limit') || message.includes('Rate limit')) return true;
+  if (message.includes('500') || message.includes('502') || message.includes('503') || message.includes('504')) return true;
+  if (message.includes('fetch failed') || message.includes('network') || message.includes('ECONNRESET') || message.includes('ETIMEDOUT')) return true;
+  if (message.includes('timeout') || message.includes('Timeout')) return true;
+  return false;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // ==================== Provider Implementations ====================
 
 async function callOpenAI(
@@ -209,7 +226,40 @@ async function callAnthropic(
   return parseLLMResponse(text);
 }
 
+// ==================== Single Provider Call ====================
+
+async function callProvider(
+  model: LLMModel,
+  systemPrompt: string,
+  userPrompt: string,
+  apiKey: string,
+  provider: LLMProvider,
+): Promise<LLMAgentResponse> {
+  switch (provider) {
+    case 'openai':
+      return await callOpenAI(model, systemPrompt, userPrompt, apiKey);
+    case 'deepseek':
+      return await callDeepSeek(model, systemPrompt, userPrompt, apiKey);
+    case 'gemini':
+      return await callGemini(model, systemPrompt, userPrompt, apiKey);
+    case 'anthropic':
+      return await callAnthropic(model, systemPrompt, userPrompt, apiKey);
+    default:
+      throw new Error(`Unsupported LLM provider: ${provider}`);
+  }
+}
+
 // ==================== Unified Entry Point ====================
+
+export interface LLMCallResult {
+  response: LLMAgentResponse;
+  success: boolean;        // true if LLM actually responded, false if fallback was used
+  error?: string;          // error message if failed
+  retriesUsed: number;     // how many retries were attempted
+}
+
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 2000; // 2s, 4s, 8s
 
 export async function callLLM(
   model: LLMModel,
@@ -217,33 +267,60 @@ export async function callLLM(
   userPrompt: string,
   apiKeys: ApiKeys
 ): Promise<LLMAgentResponse> {
+  const result = await callLLMWithStatus(model, systemPrompt, userPrompt, apiKeys);
+  return result.response;
+}
+
+export async function callLLMWithStatus(
+  model: LLMModel,
+  systemPrompt: string,
+  userPrompt: string,
+  apiKeys: ApiKeys
+): Promise<LLMCallResult> {
   const apiKey = getApiKeyForModel(model, apiKeys);
   const provider = getProviderForModel(model);
 
-  try {
-    switch (provider) {
-      case 'openai':
-        return await callOpenAI(model, systemPrompt, userPrompt, apiKey);
-      case 'deepseek':
-        return await callDeepSeek(model, systemPrompt, userPrompt, apiKey);
-      case 'gemini':
-        return await callGemini(model, systemPrompt, userPrompt, apiKey);
-      case 'anthropic':
-        return await callAnthropic(model, systemPrompt, userPrompt, apiKey);
-      default:
-        throw new Error(`Unsupported LLM provider: ${provider}`);
-    }
-  } catch (error) {
-    console.error(`LLM call failed for model ${model}:`, error);
+  let lastError: Error | null = null;
 
-    // Return a graceful fallback response so the simulation can continue
-    return {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await callProvider(model, systemPrompt, userPrompt, apiKey, provider);
+      return {
+        response,
+        success: true,
+        retriesUsed: attempt,
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.warn(`LLM call attempt ${attempt + 1}/${MAX_RETRIES + 1} failed for ${model}:`, lastError.message);
+
+      // Only retry for retryable errors, and not on the last attempt
+      if (attempt < MAX_RETRIES && isRetryableError(lastError)) {
+        const delayMs = BASE_DELAY_MS * Math.pow(2, attempt);
+        console.log(`Retrying in ${delayMs}ms...`);
+        await sleep(delayMs);
+      } else if (!isRetryableError(lastError)) {
+        // Non-retryable error (e.g. invalid API key, bad request) - break immediately
+        break;
+      }
+    }
+  }
+
+  const errorMsg = lastError?.message || 'Unknown error';
+  console.error(`All LLM call attempts failed for model ${model}: ${errorMsg}`);
+
+  // Return a graceful fallback response so the simulation can continue
+  return {
+    response: {
       goal: '',
       local_goal: 'оправиться от замешательства',
-      thought: `Ошибка вызова LLM: ${error instanceof Error ? error.message : String(error)}`,
+      thought: `Ошибка вызова LLM: ${errorMsg}`,
       actions: [{ type: 'idle', target: null }],
       narrative_event: 'На мгновение замер, не в силах собраться с мыслями.',
       inventory_report: 'без изменений',
-    };
-  }
+    },
+    success: false,
+    error: errorMsg,
+    retriesUsed: MAX_RETRIES,
+  };
 }

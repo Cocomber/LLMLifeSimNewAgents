@@ -9,6 +9,7 @@ import ControlPanel from './ControlPanel';
 import PlaybackControls from './PlaybackControls';
 import WorldEditor from './WorldEditor';
 import SummaryModal from './SummaryModal';
+import AgentSettingsModal from './AgentSettingsModal';
 
 interface GameViewProps {
   initialGame: GameState;
@@ -23,6 +24,7 @@ export default function GameView({ initialGame, apiKeys, onBackToSetup }: GameVi
   const [isGenerating, setIsGenerating] = useState(false);
   const [showWorldEditor, setShowWorldEditor] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [showAgentSettings, setShowAgentSettings] = useState(false);
   const [currentViewTurn, setCurrentViewTurn] = useState<number>(game.currentTurn);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -188,6 +190,26 @@ export default function GameView({ initialGame, apiKeys, onBackToSetup }: GameVi
     }
   }, [withRecovery]);
 
+  const handleAgentSettingsAction = useCallback(async (agentId: string, action: string, params?: Record<string, any>) => {
+    setError(null);
+    try {
+      const res = await fetch('/api/game/agent-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(withRecovery({ agentId, action, ...params })),
+      });
+      const data = await res.json();
+      if (!data.success) { setError(data.error || 'Ошибка изменения настроек'); return; }
+      setGame(data.game);
+    } catch (err: any) {
+      setError(err.message || 'Сетевая ошибка');
+    }
+  }, [withRecovery]);
+
+  const hasAgentErrors = useMemo(() => {
+    return game.agents.some((a) => a.alive && ((a.errorCount || 0) > 0 || a.paused));
+  }, [game.agents]);
+
   const handleViewTurn = useCallback((turnId: number) => { setCurrentViewTurn(turnId); }, []);
 
   const detailAgent = useMemo(() => {
@@ -215,7 +237,7 @@ export default function GameView({ initialGame, apiKeys, onBackToSetup }: GameVi
       )}
 
       <div style={{ flexShrink: 0 }}>
-        <ControlPanel currentTurn={game.currentTurn} isGenerating={isGenerating} onGenerateTurns={handleGenerateTurns} onSave={handleSave} onOpenWorldEditor={() => setShowWorldEditor(true)} onSendMessage={handleSendMessage} onBackToSetup={onBackToSetup} onOpenSummary={() => setShowSummary(true)} />
+        <ControlPanel currentTurn={game.currentTurn} isGenerating={isGenerating} onGenerateTurns={handleGenerateTurns} onSave={handleSave} onOpenWorldEditor={() => setShowWorldEditor(true)} onSendMessage={handleSendMessage} onBackToSetup={onBackToSetup} onOpenSummary={() => setShowSummary(true)} onOpenAgentSettings={() => setShowAgentSettings(true)} hasAgentErrors={hasAgentErrors} />
       </div>
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
@@ -245,6 +267,9 @@ export default function GameView({ initialGame, apiKeys, onBackToSetup }: GameVi
       )}
       {showSummary && (
         <SummaryModal turnHistory={game.turnHistory} agents={game.agents} maxTurn={game.currentTurn} apiKeys={apiKeys as Record<string, string | undefined>} onClose={() => setShowSummary(false)} />
+      )}
+      {showAgentSettings && (
+        <AgentSettingsModal agents={game.agents} apiKeys={apiKeys} onClose={() => setShowAgentSettings(false)} onAgentAction={handleAgentSettingsAction} />
       )}
     </div>
   );

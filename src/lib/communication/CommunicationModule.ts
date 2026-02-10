@@ -17,8 +17,8 @@ function distance(a: Position, b: Position): number {
 /**
  * Create a ChatMessage originating from `fromAgent`.
  *
- * If `toAgentId` is provided the message is a direct/private message;
- * otherwise it is a broadcast visible to anyone in range.
+ * `toAgentId` is a social annotation (who the speaker is addressing) but
+ * does NOT make the message private — everyone in range hears it.
  */
 export function createMessage(
   turnId: number,
@@ -37,14 +37,18 @@ export function createMessage(
 }
 
 /**
- * Return the subset of `messages` that are visible to a given agent based on
- * the current CommunicationMode and proximity rules.
+ * Return the subset of `messages` that are audible to a given agent.
+ *
+ * IMPORTANT: Speech is PUBLIC. If you are within hearing range you hear
+ * everything, regardless of who the speaker is addressing (`to_agent`).
+ * The `to_agent` field is purely social context shown in the prompt so the
+ * listener knows who is being spoken to, but it never prevents delivery.
  *
  * Mode behaviour:
- *   - 'none'            -> no messages are visible (empty array)
- *   - 'signals'         -> agents communicate via placed objects, not chat (empty array)
- *   - 'speech'          -> messages within `range` distance, or directly addressed
- *   - 'custom_language' -> same rules as 'speech'
+ *   - 'none'            -> no messages (empty array)
+ *   - 'signals'         -> no messages (communicate via objects)
+ *   - 'speech'          -> all messages within `range` distance
+ *   - 'custom_language' -> same as 'speech'
  */
 export function getMessagesForAgent(
   messages: ChatMessage[],
@@ -58,27 +62,14 @@ export function getMessagesForAgent(
     return [];
   }
 
-  // 'speech' and 'custom_language' use proximity-based filtering
+  // Speech is public: everyone within hearing range hears ALL messages.
   return messages.filter((msg) => {
     // Never show an agent its own messages
     if (msg.fromAgentId === agentId) {
       return false;
     }
 
-    // Direct messages addressed to this agent by ID or by NAME are always visible
-    if (msg.toAgentId === agentId) {
-      return true;
-    }
-    if (agentName && msg.toAgentId && msg.toAgentId === agentName) {
-      return true;
-    }
-
-    // Skip messages that are privately addressed to someone else
-    if (msg.toAgentId && msg.toAgentId !== agentId && (!agentName || msg.toAgentId !== agentName)) {
-      return false;
-    }
-
-    // Broadcast messages: check proximity
+    // Within hearing range? Then you hear it.
     return distance(msg.position, agentPosition) <= range;
   });
 }
@@ -86,11 +77,6 @@ export function getMessagesForAgent(
 /**
  * Check whether two agents are able to communicate given the current mode
  * and their positions.
- *
- * - 'none'            -> always false
- * - 'signals'         -> always false (communication happens via world objects)
- * - 'speech'          -> true if within range
- * - 'custom_language' -> true if within range
  */
 export function canCommunicate(
   mode: CommunicationMode,

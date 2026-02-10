@@ -283,66 +283,116 @@ export async function generateTurn(gameState: GameState): Promise<GameState> {
       updatedMemory = { ...updatedMemory, relationships: currentRels };
     }
 
-    // (f3) Store conversation messages in relationship logs (both sent and received)
+    // (f3) Store conversation messages in relationship logs
+    //
+    // Design: speech is public, so we log:
+    //   A) Messages this agent SENT this turn (from agentMessages)
+    //   B) Messages this agent HEARD — from allTurnMessages (agents processed
+    //      earlier this turn) + previous turn history (agents processed after
+    //      us last turn). Dedup by (relName, turnId, speaker, messageSlice).
     {
       const currentRels = { ...(updatedMemory.relationships || {}) };
 
-      // Messages THIS agent sent this turn
-      for (const msg of agentMessages) {
-        // Find recipient name
-        let recipientName = msg.toAgentId || undefined;
-        if (recipientName) {
-          // toAgentId might be a name or an id; try to resolve
-          const recipientAgent = updatedAgents.find(
-            (a) => a.id === recipientName || a.name === recipientName
-          );
-          if (recipientAgent) recipientName = recipientAgent.name;
-
-          if (!currentRels[recipientName]) {
-            currentRels[recipientName] = {
-              name: recipientName,
-              description: 'Кто-то, с кем я разговаривал',
-              attitude: 'нейтральный',
-              lastSeenTurn: nextTurnId,
-              conversationLog: [],
-            };
-          }
-          currentRels[recipientName] = {
-            ...currentRels[recipientName],
-            conversationLog: [
-              ...currentRels[recipientName].conversationLog,
-              { turnId: nextTurnId, speaker: agent.name, message: msg.message },
-            ],
-          };
+      // Dedup set from existing conversation entries
+      const logged = new Set<string>();
+      for (const relName of Object.keys(currentRels)) {
+        for (const entry of currentRels[relName].conversationLog) {
+          logged.add(`${relName}|${entry.turnId}|${entry.speaker}|${entry.message.slice(0, 80)}`);
         }
       }
 
-      // Messages received by this agent this turn
-      for (const msg of recentMessages) {
-        // Only store messages from this turn
-        if (msg.turnId !== 0) { // turnId 0 means not yet set; current turn messages have turnId set by ActionProcessor
-          const senderName = msg.fromAgentName;
-          if (!currentRels[senderName]) {
-            currentRels[senderName] = {
-              name: senderName,
-              description: 'Кто-то, кто со мной разговаривал',
-              attitude: 'нейтральный',
-              lastSeenTurn: nextTurnId,
-              conversationLog: [],
-            };
-          }
-          // Avoid duplicate entries (msg might already be logged)
-          const lastEntry = currentRels[senderName].conversationLog.slice(-1)[0];
-          if (!lastEntry || lastEntry.turnId !== msg.turnId || lastEntry.message !== msg.message || lastEntry.speaker !== senderName) {
-            currentRels[senderName] = {
-              ...currentRels[senderName],
-              conversationLog: [
-                ...currentRels[senderName].conversationLog,
-                { turnId: msg.turnId || nextTurnId, speaker: senderName, message: msg.message },
-              ],
-            };
+      const ensureRel = (relName: string) => {
+        if (!currentRels[relName]) {
+          currentRels[relName] = {
+            name: relName,
+            description: 'Кто-то поблизости',
+            attitude: 'нейтральный',
+            lastSeenTurn: nextTurnId,
+            conversationLog: [],
+          };
+        }
+      };
+
+      const addEntry = (relName: string, turnId: number, speaker: string, message: string) => {
+        const key = `${relName}|${turnId}|${speaker}|${message.slice(0, 80)}`;
+        if (logged.has(key)) return;
+        logged.add(key);
+        ensureRel(relName);
+        currentRels[relName] = {
+          ...currentRels[relName],
+          lastSeenTurn: nextTurnId,
+          conversationLog: [
+            ...currentRels[relName].conversationLog,
+            { turnId, speaker, message },
+          ],
+        };
+      };
+
+      // Helper: resolve "Незнакомец" or partial names to actual agent name
+      const resolveRecipient = (toAgentId: string): string | undefined => {
+        // Direct match by id or name
+        const byMatch = updatedAgents.find(
+          (a) => a.id === toAgentId || a.name === toAgentId
+        );
+        if (byMatch && byMatch.id !== agent.id) return byMatch.name;
+
+        // "Незнакомец" → find nearest visible agent NOT already in relationships
+        if (toAgentId.includes('Незнакомец') || toAgentId.includes('незнакомец')) {
+          const knownNames = new Set(Object.keys(currentRels));
+          const candidates = updatedAgents
+            .filter((a) => a.id !== agent.id && a.alive && !knownNames.has(a.name))
+            .map((a) => ({
+              name: a.name,
+              dist: Math.sqrt(
+                (a.position.x - updatedAgent.position.x) ** 2 +
+                (a.position.y - updatedAgent.position.y) ** 2
+              ),
+            }))
+            .filter((c) => c.dist <= gameState.settings.visibilityRange)
+            .sort((a, b) => a.dist - b.dist);
+          if (candidates.length > 0) return candidates[0].name;
+        }
+
+        return undefined;
+      };
+
+      // --- A) Messages this agent SENT ---
+      for (const msg of agentMessages) {
+        if (!msg.message?.trim()) continue;
+        if (msg.toAgentId) {
+          // Directed message: log under the resolved recipient
+          const resolved = resolveRecipient(msg.toAgentId);
+          if (resolved) {
+            addEntry(resolved, nextTurnId, agent.name, msg.message);
           }
         }
+        // Broadcasts: not logged under a specific relationship
+      }
+
+      // --- B) Messages this agent HEARD ---
+      // Sources: current turn (agents already processed) + previous turn
+      //          (agents processed after us last time).
+      const prevTurnMsgs: ChatMessage[] = [];
+      if (gameState.turnHistory.length > 0) {
+        prevTurnMsgs.push(...gameState.turnHistory[gameState.turnHistory.length - 1].messages);
+      }
+
+      const allHearable = [...prevTurnMsgs, ...allTurnMessages].filter((msg) => {
+        if (msg.fromAgentId === agent.id) return false;
+        const dist = Math.sqrt(
+          (msg.position.x - updatedAgent.position.x) ** 2 +
+          (msg.position.y - updatedAgent.position.y) ** 2
+        );
+        return dist <= gameState.settings.visibilityRange;
+      });
+
+      for (const msg of allHearable) {
+        addEntry(
+          msg.fromAgentName,
+          msg.turnId || nextTurnId,
+          msg.fromAgentName,
+          msg.message,
+        );
       }
 
       updatedMemory = { ...updatedMemory, relationships: currentRels };

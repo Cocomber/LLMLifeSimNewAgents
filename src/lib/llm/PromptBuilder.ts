@@ -223,14 +223,27 @@ export function buildUserPrompt(
 
   // Recent messages from others (current turn + recent turns)
   if (recentMessages.length > 0) {
-    parts.push(`\nСообщения, которые ты слышишь ПРЯМО СЕЙЧАС:`);
+    parts.push(`\nСообщения, которые ты слышишь ПРЯМО СЕЙЧАС (речь публична — ты слышишь всё рядом):`);
     for (const msg of recentMessages) {
-      const recipient = msg.toAgentId ? ` (обращается к ${msg.toAgentId})` : ' (говорит вслух)';
+      let annotation = '';
+      if (msg.toAgentId) {
+        // Check if the message is addressed to THIS agent (by id, name, or "Незнакомец")
+        const toId = msg.toAgentId;
+        const isToMe = toId === agent.id || toId === agent.name
+          || (toId.includes('Незнакомец') && !relationships[msg.fromAgentName]);
+        if (isToMe) {
+          annotation = ' [ОБРАЩАЕТСЯ К ТЕБЕ]';
+        } else {
+          annotation = ` (обращается к ${msg.toAgentId})`;
+        }
+      } else {
+        annotation = ' (говорит вслух всем)';
+      }
       parts.push(
-        `  ${msg.fromAgentName}${recipient}: "${msg.message}"`,
+        `  ${msg.fromAgentName}${annotation}: "${msg.message}"`,
       );
     }
-    parts.push(`  → Если тебе задали вопрос — ОТВЕТЬ на него! Не игнорируй обращения.`);
+    parts.push(`  → Если к тебе обращаются или задают вопрос — ОБЯЗАТЕЛЬНО ОТВЕТЬ! Не молчи!`);
   }
 
   // Global world events

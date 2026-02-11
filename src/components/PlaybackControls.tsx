@@ -42,10 +42,8 @@ export default function PlaybackControls({
   agents,
 }: PlaybackControlsProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Build lookup map from agent ID to agent object
   const agentLookup = React.useMemo(() => {
     const map = new Map<string, AgentState>();
     for (const agent of agents) {
@@ -58,7 +56,6 @@ export default function PlaybackControls({
     onViewTurn(currentViewTurn < maxTurn ? currentViewTurn + 1 : 0);
   }, [currentViewTurn, maxTurn, onViewTurn]);
 
-  // Auto-play interval
   useEffect(() => {
     if (isPlaying) {
       intervalRef.current = setInterval(() => {
@@ -78,7 +75,6 @@ export default function PlaybackControls({
     };
   }, [isPlaying, advanceTurn]);
 
-  // Stop auto-play if we reach the last turn
   useEffect(() => {
     if (isPlaying && currentViewTurn >= maxTurn) {
       setIsPlaying(false);
@@ -86,307 +82,150 @@ export default function PlaybackControls({
   }, [isPlaying, currentViewTurn, maxTurn]);
 
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = Number(e.target.value);
-    onViewTurn(value);
+    onViewTurn(Number(e.target.value));
   };
 
-  const goFirst = () => {
-    setIsPlaying(false);
-    onViewTurn(0);
-  };
-
-  const goPrev = () => {
-    if (currentViewTurn > 0) {
-      onViewTurn(currentViewTurn - 1);
-    }
-  };
-
-  const goNext = () => {
-    if (currentViewTurn < maxTurn) {
-      onViewTurn(currentViewTurn + 1);
-    }
-  };
-
-  const goLast = () => {
-    setIsPlaying(false);
-    onViewTurn(maxTurn);
-  };
-
-  const toggleAutoPlay = () => {
-    setIsPlaying((prev) => !prev);
-  };
+  const goFirst = () => { setIsPlaying(false); onViewTurn(0); };
+  const goPrev = () => { if (currentViewTurn > 0) onViewTurn(currentViewTurn - 1); };
+  const goNext = () => { if (currentViewTurn < maxTurn) onViewTurn(currentViewTurn + 1); };
+  const goLast = () => { setIsPlaying(false); onViewTurn(maxTurn); };
+  const toggleAutoPlay = () => { setIsPlaying((prev) => !prev); };
 
   const currentRecord = turnHistory.find((r) => r.turnId === currentViewTurn);
 
+  const btnStyle: React.CSSProperties = { padding: '3px 7px', fontSize: '0.8rem', minWidth: '32px' };
+
   return (
-    <div
-      className="panel"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px',
-        padding: '10px 16px',
-      }}
-    >
-      {/* Slider row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-          Ход 0
-        </span>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* Header: turn nav */}
+      <div style={{ flexShrink: 0, padding: '10px 10px 6px', borderBottom: '1px solid var(--border)' }}>
+        {/* Turn counter */}
+        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+          История ходов
+        </div>
+
+        <div style={{ fontWeight: 600, fontSize: '0.85rem', textAlign: 'center', marginBottom: '6px' }}>
+          Ход {currentViewTurn} / {maxTurn}
+        </div>
+
+        {/* Slider */}
         <input
           type="range"
           min={0}
           max={maxTurn}
           value={currentViewTurn}
           onChange={handleSliderChange}
-          style={{ flex: 1, cursor: 'pointer' }}
+          style={{ width: '100%', cursor: 'pointer', marginBottom: '6px' }}
         />
-        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-          Ход {maxTurn}
-        </span>
+
+        {/* Nav buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', flexWrap: 'wrap' }}>
+          <button className="btn btn-secondary" onClick={goFirst} disabled={currentViewTurn === 0} style={btnStyle} title="Первый ход">⏮</button>
+          <button className="btn btn-secondary" onClick={goPrev} disabled={currentViewTurn === 0} style={btnStyle} title="Предыдущий">◀</button>
+          <button className="btn btn-secondary" onClick={goNext} disabled={currentViewTurn >= maxTurn} style={btnStyle} title="Следующий">▶</button>
+          <button className="btn btn-secondary" onClick={goLast} disabled={currentViewTurn >= maxTurn} style={btnStyle} title="Последний">⏭</button>
+          <button
+            className={isPlaying ? 'btn btn-primary' : 'btn btn-secondary'}
+            onClick={toggleAutoPlay}
+            disabled={maxTurn === 0}
+            style={{ ...btnStyle, fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+          >
+            {isPlaying ? '⏸' : '▶ Авто'}
+          </button>
+        </div>
       </div>
 
-      {/* Navigation row */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '6px',
-          flexWrap: 'wrap',
-        }}
-      >
-        <button
-          className="btn btn-secondary"
-          onClick={goFirst}
-          disabled={currentViewTurn === 0}
-          style={{ padding: '4px 8px', fontSize: '0.85rem' }}
-          title="Первый ход"
-        >
-          ⏮
-        </button>
-        <button
-          className="btn btn-secondary"
-          onClick={goPrev}
-          disabled={currentViewTurn === 0}
-          style={{ padding: '4px 8px', fontSize: '0.85rem' }}
-          title="Предыдущий ход"
-        >
-          ◀
-        </button>
+      {/* Detail section - scrollable, fills remaining space */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', fontSize: '0.76rem' }}>
+        {currentViewTurn > 0 && currentRecord ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {/* Agent sections */}
+            {Object.entries(currentRecord.agentTurns).map(([agentId, turn]) => {
+              const agentInfo = agentLookup.get(agentId);
+              return (
+                <div
+                  key={agentId}
+                  style={{
+                    padding: '6px 8px',
+                    borderRadius: '6px',
+                    backgroundColor: 'var(--bg-secondary, rgba(255,255,255,0.04))',
+                    border: '1px solid var(--border)',
+                    borderLeft: `3px solid ${agentInfo?.color || 'var(--border)'}`,
+                  }}
+                >
+                  <div style={{ fontWeight: 700, marginBottom: '3px', color: agentInfo?.color || 'var(--text-primary)', fontSize: '0.8rem' }}>
+                    {agentInfo?.emoji || '?'} {agentInfo?.name || agentId}
+                  </div>
 
-        <span
-          style={{
-            fontSize: '0.82rem',
-            fontWeight: 600,
-            padding: '0 8px',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Просмотр хода: {currentViewTurn} / {maxTurn}
-        </span>
-
-        <button
-          className="btn btn-secondary"
-          onClick={goNext}
-          disabled={currentViewTurn >= maxTurn}
-          style={{ padding: '4px 8px', fontSize: '0.85rem' }}
-          title="Следующий ход"
-        >
-          ▶
-        </button>
-        <button
-          className="btn btn-secondary"
-          onClick={goLast}
-          disabled={currentViewTurn >= maxTurn}
-          style={{ padding: '4px 8px', fontSize: '0.85rem' }}
-          title="Последний ход"
-        >
-          ⏭
-        </button>
-
-        {/* Separator */}
-        <div
-          style={{
-            width: '1px',
-            height: '24px',
-            backgroundColor: 'var(--border)',
-            flexShrink: 0,
-            margin: '0 4px',
-          }}
-        />
-
-        {/* Auto-play button */}
-        <button
-          className={isPlaying ? 'btn btn-primary' : 'btn btn-secondary'}
-          onClick={toggleAutoPlay}
-          disabled={maxTurn === 0}
-          style={{ padding: '4px 10px', fontSize: '0.82rem', whiteSpace: 'nowrap' }}
-        >
-          {isPlaying ? '⏸ Стоп' : '▶ Авто'}
-        </button>
-
-        {/* Separator */}
-        <div
-          style={{
-            width: '1px',
-            height: '24px',
-            backgroundColor: 'var(--border)',
-            flexShrink: 0,
-            margin: '0 4px',
-          }}
-        />
-
-        {/* Toggle detail panel */}
-        <button
-          className="btn btn-secondary"
-          onClick={() => setDetailOpen((prev) => !prev)}
-          style={{ padding: '4px 10px', fontSize: '0.82rem', whiteSpace: 'nowrap' }}
-        >
-          {detailOpen ? 'Скрыть детали' : 'Детали хода'}
-        </button>
-      </div>
-
-      {/* Turn detail panel (collapsible) */}
-      {detailOpen && currentViewTurn > 0 && currentRecord && (
-        <div
-          style={{
-            borderTop: '1px solid var(--border)',
-            paddingTop: '8px',
-            marginTop: '4px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            maxHeight: '260px',
-            overflowY: 'auto',
-            fontSize: '0.78rem',
-          }}
-        >
-          {/* Agent actions */}
-          {Object.entries(currentRecord.agentTurns).map(([agentId, turn]) => {
-            const agentInfo = agentLookup.get(agentId);
-            return (
-            <div
-              key={agentId}
-              style={{
-                padding: '6px 10px',
-                borderRadius: '6px',
-                backgroundColor: 'var(--bg-secondary, rgba(255,255,255,0.04))',
-                border: '1px solid var(--border)',
-                borderLeft: `4px solid ${agentInfo?.color || 'var(--border)'}`,
-              }}
-            >
-              <div style={{ fontWeight: 700, marginBottom: '4px', color: agentInfo?.color || 'var(--text-primary)' }}>
-                {agentInfo?.emoji || '?'} {agentInfo?.name || agentId}
-              </div>
-
-              {/* Thought */}
-              {turn.thought && (
-                <div style={{ marginBottom: '2px', color: 'var(--text-secondary)' }}>
-                  <span style={{ fontWeight: 600 }}>Мысль: </span>
-                  {turn.thought}
-                </div>
-              )}
-
-              {/* Goals */}
-              {turn.localGoal && (
-                <div style={{ marginBottom: '2px', color: 'var(--text-secondary)' }}>
-                  <span style={{ fontWeight: 600 }}>Задача: </span>
-                  {turn.localGoal}
-                </div>
-              )}
-
-              {/* Actions */}
-              {turn.actions.length > 0 && (
-                <div style={{ marginBottom: '2px' }}>
-                  <span style={{ fontWeight: 600 }}>Действия: </span>
-                  {turn.actions.map((a, i) => (
-                    <span key={i}>
-                      {formatAction(a)}
-                      {i < turn.actions.length - 1 ? '; ' : ''}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Narrative event */}
-              {turn.narrativeEvent && (
-                <div style={{ fontStyle: 'italic', color: 'var(--text-secondary)' }}>
-                  {turn.narrativeEvent}
-                </div>
-              )}
-            </div>
-            );
-          })}
-
-          {/* World events */}
-          {currentRecord.worldEvents.length > 0 && (
-            <div
-              style={{
-                padding: '6px 10px',
-                borderRadius: '6px',
-                backgroundColor: 'var(--bg-secondary, rgba(255,255,255,0.04))',
-                border: '1px solid var(--border)',
-              }}
-            >
-              <div style={{ fontWeight: 700, marginBottom: '4px' }}>
-                Мировые события
-              </div>
-              {currentRecord.worldEvents.map((evt, i) => (
-                <div key={i} style={{ color: 'var(--text-secondary)' }}>
-                  {evt}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Messages */}
-          {currentRecord.messages.length > 0 && (
-            <div
-              style={{
-                padding: '6px 10px',
-                borderRadius: '6px',
-                backgroundColor: 'var(--bg-secondary, rgba(255,255,255,0.04))',
-                border: '1px solid var(--border)',
-              }}
-            >
-              <div style={{ fontWeight: 700, marginBottom: '4px' }}>
-                Сообщения
-              </div>
-              {currentRecord.messages.map((msg, i) => (
-                <div key={i} style={{ marginBottom: '2px' }}>
-                  <span style={{ fontWeight: 600 }}>{msg.fromAgentName}</span>
-                  {msg.toAgentId ? (
-                    <span style={{ color: 'var(--text-secondary)' }}> (к {msg.toAgentId})</span>
-                  ) : (
-                    <span style={{ color: 'var(--text-secondary)' }}> (всем)</span>
+                  {turn.thought && (
+                    <div style={{ marginBottom: '2px', color: 'var(--text-secondary)' }}>
+                      <span style={{ fontWeight: 600 }}>Мысль: </span>{turn.thought}
+                    </div>
                   )}
-                  : {msg.message}
+
+                  {turn.localGoal && (
+                    <div style={{ marginBottom: '2px', color: 'var(--text-secondary)' }}>
+                      <span style={{ fontWeight: 600 }}>Задача: </span>{turn.localGoal}
+                    </div>
+                  )}
+
+                  {turn.actions.length > 0 && (
+                    <div style={{ marginBottom: '2px' }}>
+                      <span style={{ fontWeight: 600 }}>Действия: </span>
+                      {turn.actions.map((a, i) => (
+                        <span key={i}>
+                          {formatAction(a)}
+                          {i < turn.actions.length - 1 ? '; ' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {turn.narrativeEvent && (
+                    <div style={{ fontStyle: 'italic', color: 'var(--text-secondary)' }}>
+                      {turn.narrativeEvent}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            })}
 
-          {/* Empty state for detail panel when no data */}
-        </div>
-      )}
+            {/* World events */}
+            {currentRecord.worldEvents.length > 0 && (
+              <div style={{ padding: '6px 8px', borderRadius: '6px', backgroundColor: 'var(--bg-secondary, rgba(255,255,255,0.04))', border: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 700, marginBottom: '3px' }}>Мировые события</div>
+                {currentRecord.worldEvents.map((evt, i) => (
+                  <div key={i} style={{ color: 'var(--text-secondary)' }}>{evt}</div>
+                ))}
+              </div>
+            )}
 
-      {detailOpen && (currentViewTurn === 0 || !currentRecord) && (
-        <div
-          style={{
-            borderTop: '1px solid var(--border)',
-            paddingTop: '8px',
-            marginTop: '4px',
-            fontSize: '0.78rem',
-            color: 'var(--text-secondary)',
-            textAlign: 'center',
-          }}
-        >
-          {currentViewTurn === 0
-            ? 'Выберите ход для просмотра деталей.'
-            : 'Нет данных для этого хода.'}
-        </div>
-      )}
+            {/* Messages */}
+            {currentRecord.messages.length > 0 && (
+              <div style={{ padding: '6px 8px', borderRadius: '6px', backgroundColor: 'var(--bg-secondary, rgba(255,255,255,0.04))', border: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 700, marginBottom: '3px' }}>Сообщения</div>
+                {currentRecord.messages.map((msg, i) => (
+                  <div key={i} style={{ marginBottom: '2px' }}>
+                    <span style={{ fontWeight: 600 }}>{msg.fromAgentName}</span>
+                    {msg.toAgentId ? (
+                      <span style={{ color: 'var(--text-secondary)' }}> (к {msg.toAgentId})</span>
+                    ) : (
+                      <span style={{ color: 'var(--text-secondary)' }}> (всем)</span>
+                    )}
+                    : {msg.message}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ color: 'var(--text-secondary)', textAlign: 'center', paddingTop: '20px' }}>
+            {currentViewTurn === 0
+              ? 'Выберите ход для просмотра деталей.'
+              : 'Нет данных для этого хода.'}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

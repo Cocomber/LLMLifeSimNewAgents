@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import type { GameState, AgentState, WorldState, TurnRecord, WorldObject, ApiKeys } from '@/types';
 import GameMap from './GameMap';
 import AgentPanel from './AgentPanel';
@@ -17,6 +17,10 @@ interface GameViewProps {
   onBackToSetup: () => void;
 }
 
+const MIN_PANEL_WIDTH = 200;
+const MAX_PANEL_WIDTH = 600;
+const DEFAULT_PANEL_WIDTH = 320;
+
 export default function GameView({ initialGame, apiKeys, onBackToSetup }: GameViewProps) {
   const [game, setGame] = useState<GameState>(initialGame);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
@@ -28,6 +32,33 @@ export default function GameView({ initialGame, apiKeys, onBackToSetup }: GameVi
   const [currentViewTurn, setCurrentViewTurn] = useState<number>(game.currentTurn);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  // Resizable left panel
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
+  const isResizing = useRef(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const startResize = useCallback((e: React.MouseEvent) => {
+    isResizing.current = true;
+    e.preventDefault();
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, e.clientX));
+      setPanelWidth(newWidth);
+    };
+    const handleMouseUp = () => {
+      isResizing.current = false;
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
 
   // Helper: build body with apiKeys and gameState backup for state recovery
   const withRecovery = useCallback((body: Record<string, any>) => {
@@ -240,23 +271,60 @@ export default function GameView({ initialGame, apiKeys, onBackToSetup }: GameVi
         <ControlPanel currentTurn={game.currentTurn} isGenerating={isGenerating} onGenerateTurns={handleGenerateTurns} onSave={handleSave} onOpenWorldEditor={() => setShowWorldEditor(true)} onSendMessage={handleSendMessage} onBackToSetup={onBackToSetup} onOpenSummary={() => setShowSummary(true)} onOpenAgentSettings={() => setShowAgentSettings(true)} hasAgentErrors={hasAgentErrors} />
       </div>
 
+      {/* Main content: left panel + map + right panel */}
       <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
-        {/* Map - larger area */}
-        <div style={{ flex: '1 1 70%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px', overflow: 'auto' }}>
+
+        {/* Left panel: Playback / Turn history */}
+        <div
+          ref={panelRef}
+          className="panel"
+          style={{
+            width: panelWidth,
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            borderRight: 'none',
+            borderRadius: 0,
+            margin: 0,
+          }}
+        >
+          <PlaybackControls
+            turnHistory={game.turnHistory}
+            currentViewTurn={currentViewTurn}
+            onViewTurn={handleViewTurn}
+            maxTurn={game.currentTurn}
+            agents={game.agents}
+          />
+        </div>
+
+        {/* Drag handle */}
+        <div
+          onMouseDown={startResize}
+          style={{
+            width: '5px',
+            cursor: 'col-resize',
+            flexShrink: 0,
+            background: 'var(--border)',
+            transition: 'background 0.15s',
+            position: 'relative',
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--accent, #3B82F6)'; }}
+          onMouseLeave={(e) => { if (!isResizing.current) (e.currentTarget as HTMLDivElement).style.background = 'var(--border)'; }}
+        />
+
+        {/* Map - center */}
+        <div style={{ flex: '1 1 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px', overflow: 'auto', minWidth: 0 }}>
           <GameMap world={displayWorld} agents={displayAgents} selectedAgentId={selectedAgentId} currentTurn={isViewingHistory ? currentViewTurn : game.currentTurn} />
         </div>
 
-        {/* Agent sidebar */}
-        <div style={{ flex: '0 0 30%', minWidth: '320px', maxWidth: '420px', overflowY: 'auto', padding: '12px', borderLeft: '1px solid var(--border)' }}>
+        {/* Agent sidebar - right */}
+        <div style={{ flex: '0 0 auto', width: '320px', maxWidth: '380px', overflowY: 'auto', padding: '12px', borderLeft: '1px solid var(--border)' }}>
           <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '10px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Агенты ({displayAgents.length})
           </div>
           <AgentPanel agents={displayAgents} selectedAgentId={selectedAgentId} onSelectAgent={setSelectedAgentId} onOpenDetail={setDetailAgentId} />
         </div>
-      </div>
-
-      <div style={{ flexShrink: 0 }}>
-        <PlaybackControls turnHistory={game.turnHistory} currentViewTurn={currentViewTurn} onViewTurn={handleViewTurn} maxTurn={game.currentTurn} agents={game.agents} />
       </div>
 
       {detailAgent && (
